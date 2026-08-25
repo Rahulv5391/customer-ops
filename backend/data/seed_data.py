@@ -264,67 +264,92 @@ def seed_notes(db, customers: list[Customer]) -> list[CustomerNote]:
     return notes
 
 
-ESCALATION_SEED = [
-    (
-        "refund_approval",
-        "Refund $85.00 for order outside the 30-day return window",
-        "high",
-        "pending",
-        "Refund Policy v2, Section 2: refunds after 30 days require team-lead approval.",
-        None,
-    ),
-    (
-        "sla_exception",
-        "Priority-1 ticket exceeded 4h first-response SLA, requesting exception sign-off",
-        "urgent",
-        "pending",
-        "Support SLA Policy v3, Section 2: P1 breaches must be logged for review.",
-        None,
-    ),
-    (
-        "account_credit",
-        "Issue $50 account credit for repeated shipping delays",
-        "medium",
-        "approved",
-        "Service Recovery Guidelines, Section 2: credits under $50 may be approved by a team lead.",
-        None,
-    ),
-    (
-        "retention_offer_override",
-        "Customer requesting contract cancellation, proposing 20% retention discount",
-        "high",
-        "pending",
-        "Canned Responses - Retention v4: discounts above 15% require team-lead approval.",
-        None,
-    ),
-    (
-        "refund_approval",
-        "Full refund requested for damaged item, no return required",
-        "medium",
-        "rejected",
-        "Refund Policy v2, Section 3: damaged-item refunds require photo evidence.",
-        "Missing required photo evidence of damage.",
-    ),
-]
-
-
 def seed_escalations(db, tickets: list[Ticket], agents: list[SupportAgent]) -> list[Escalation]:
     print("Seeding Escalations...")
+
+    def _pick(category: str | None = None, priorities: tuple[str, ...] | None = None):
+        pool = tickets
+        if category:
+            pool = [t for t in pool if t.category == category]
+        if priorities:
+            pool = [t for t in pool if t.priority in priorities]
+        return pool[0] if pool else random.choice(tickets)
+
+    billing_tickets = [t for t in tickets if t.category == "billing"]
+
+    # Each entry's ticket is picked to actually match its narrative (a
+    # refund escalation links to a billing ticket, not a random one), and
+    # the retention case is deliberately ticket_id=None - escalations can
+    # exist without a specific ticket (a proactive account-level case), and
+    # this exercises that nullable path rather than leaving it untested.
+    plan = [
+        (
+            "refund_approval",
+            "Refund $85.00 for order outside the 30-day return window",
+            "high",
+            "pending",
+            "Refund Policy v2, Section 2: refunds after 30 days require team-lead approval.",
+            None,
+            billing_tickets[0] if billing_tickets else _pick(),
+        ),
+        (
+            "sla_exception",
+            "Priority-1 ticket exceeded 4h first-response SLA, requesting exception sign-off",
+            "urgent",
+            "pending",
+            "Support SLA Policy v3, Section 2: P1 breaches must be logged for review.",
+            None,
+            _pick(priorities=("high", "urgent")),
+        ),
+        (
+            "account_credit",
+            "Issue $50 account credit for repeated shipping delays",
+            "medium",
+            "approved",
+            "Service Recovery Guidelines, Section 2: credits under $50 may be approved by a team lead.",
+            None,
+            _pick(category="shipping"),
+        ),
+        (
+            "retention_offer_override",
+            "Customer requesting contract cancellation, proposing 20% retention discount",
+            "high",
+            "pending",
+            "Canned Responses - Retention v4: discounts above 15% require team-lead approval.",
+            None,
+            None,
+        ),
+        (
+            "refund_approval",
+            "Full refund requested for damaged item, no return required",
+            "medium",
+            "rejected",
+            "Refund Policy v2, Section 3: damaged-item refunds require photo evidence.",
+            "Missing required photo evidence of damage.",
+            billing_tickets[1] if len(billing_tickets) > 1 else _pick(),
+        ),
+    ]
+
     escalations = []
-    for i, (etype, action, priority, status, citation, rejection_note) in enumerate(ESCALATION_SEED):
-        ticket = tickets[i % len(tickets)]
+    for etype, action, priority, status, citation, rejection_note, ticket in plan:
+        created_at = _days_ago(random.uniform(1, 10))
+        resolved_at = (
+            created_at + timedelta(hours=random.uniform(2, 72))
+            if status in ("approved", "rejected")
+            else None
+        )
         escalations.append(
             Escalation(
-                ticket_id=ticket.id,
+                ticket_id=ticket.id if ticket else None,
                 escalation_type=etype,
                 requested_action=action,
                 priority=priority,
                 status=status,
                 policy_citation=citation,
                 requested_by=random.choice(agents).full_name,
-                created_at=_days_ago(random.uniform(1, 10)),
+                created_at=created_at,
                 rejection_note=rejection_note,
-                resolved_at=_days_ago(random.uniform(0, 5)) if status in ("approved", "rejected") else None,
+                resolved_at=resolved_at,
             )
         )
     db.add_all(escalations)
