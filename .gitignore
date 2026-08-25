@@ -1,0 +1,15 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Env files - each subproject (backend/, frontend/) also keeps its own
+# .gitignore for its language/tool-specific ignores (venvs, node_modules, etc.)
+.env
+.env.local
+.env.*.local
+
+*.log
