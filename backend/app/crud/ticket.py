@@ -52,8 +52,8 @@ def update_ticket(db: Session, ticket: Ticket, updates: TicketUpdate) -> Ticket:
     return ticket
 
 
-def add_ticket_event(db: Session, ticket_id: str, data: TicketEventCreate) -> TicketEvent:
-    event = TicketEvent(ticket_id=ticket_id, **data.model_dump())
+def add_ticket_event(db: Session, ticket_id: str, actor: str, data: TicketEventCreate) -> TicketEvent:
+    event = TicketEvent(ticket_id=ticket_id, actor=actor, **data.model_dump())
     db.add(event)
     db.commit()
     db.refresh(event)

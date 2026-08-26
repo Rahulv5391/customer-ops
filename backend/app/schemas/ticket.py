@@ -3,21 +3,21 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
-class TicketEventBase(BaseModel):
+class TicketEventCreate(BaseModel):
     event_type: str
-    actor: str
     detail: str = ""
+    # actor is set server-side from the authenticated agent, not
+    # client-supplied (same rule as Escalation.requested_by).
 
 
-class TicketEventCreate(TicketEventBase):
-    pass
-
-
-class TicketEventResponse(TicketEventBase):
+class TicketEventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
     ticket_id: str
+    event_type: str
+    actor: str
+    detail: str
     created_at: datetime
 
 
@@ -55,3 +55,13 @@ class TicketResponse(TicketBase):
 
 class TicketDetailResponse(TicketResponse):
     events: list[TicketEventResponse] = []
+
+
+class TicketBoardColumn(BaseModel):
+    status: str
+    tickets: list[TicketResponse]
+
+
+class TicketBoardChannel(BaseModel):
+    channel: str
+    columns: list[TicketBoardColumn]

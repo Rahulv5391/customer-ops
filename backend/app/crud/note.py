@@ -1,11 +1,10 @@
 from sqlalchemy.orm import Session
 
 from app.models.note import CustomerNote
-from app.schemas.note import NoteCreate
 
 
-def add_note(db: Session, customer_id: str, data: NoteCreate) -> CustomerNote:
-    note = CustomerNote(customer_id=customer_id, **data.model_dump())
+def add_note(db: Session, customer_id: str, author: str, body: str) -> CustomerNote:
+    note = CustomerNote(customer_id=customer_id, author=author, body=body)
     db.add(note)
     db.commit()
     db.refresh(note)

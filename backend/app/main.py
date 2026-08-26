@@ -6,6 +6,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import Base, engine
 from app import models  # noqa: F401 - registers all models on Base.metadata
+from app.routers import (
+    activity_log,
+    agents,
+    auth,
+    customers,
+    data_sources,
+    escalations,
+    kb,
+    orders,
+    tickets,
+)
 
 
 @asynccontextmanager
@@ -17,9 +28,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 
-# Never combine a wildcard origin with allow_credentials=True (invalid per the
-# CORS spec, and a bug in the MedAssist AI reference this project fixes - see
-# Architecture.md §8.7). Wildcard is only used in DEBUG, without credentials.
 if settings.debug:
     app.add_middleware(
         CORSMiddleware,
@@ -41,3 +49,17 @@ else:
 @app.get("/")
 def health_check():
     return {"status": "ok", "app": settings.app_name}
+
+
+for router_module in (
+    auth,
+    customers,
+    orders,
+    tickets,
+    agents,
+    escalations,
+    kb,
+    data_sources,
+    activity_log,
+):
+    app.include_router(router_module.router, prefix=settings.api_v1_prefix)
