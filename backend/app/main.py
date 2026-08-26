@@ -10,6 +10,7 @@ from app.routers import (
     activity_log,
     agents,
     auth,
+    chat,
     customers,
     data_sources,
     escalations,
@@ -61,5 +62,6 @@ for router_module in (
     kb,
     data_sources,
     activity_log,
+    chat,
 ):
     app.include_router(router_module.router, prefix=settings.api_v1_prefix)
