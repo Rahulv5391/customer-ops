@@ -4,20 +4,17 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.agents.base_agent import BaseSubAgent
+from app.agents.messages import UNAVAILABLE_MESSAGE
 from app.core.exceptions import CircuitOpenError, LLMOutputValidationError, LLMTransientError
 from app.core.observability import get_logger
-from app.crud.customer import get_customer_with_history, list_customers
+from app.crud.customer import get_customer, get_customer_with_history, list_customers
 from app.prompts.loader import load_prompt
-from app.schemas.chat import ChatMessage
+from app.schemas.chat import ActionDiff, ChatMessage, PendingAction
+from app.services.action_token import create_action_token
+from app.services.crm_mutations import CUSTOMER_FIELD_LABELS, normalize_customer_field
 from app.services.entity_resolution import resolve_entity
 
 logger = get_logger("crm_agent")
-
-_UNAVAILABLE_MESSAGE = ChatMessage(
-    type="error",
-    content="The AI assistant is temporarily unavailable. Please try again in a moment.",
-    status="final",
-)
 
 _NOT_FOUND = ChatMessage(
     type="text",
@@ -38,13 +35,13 @@ class CRMAgentOutput(BaseModel):
 class CRMAgent:
     """Customer lookup + write sub-agent (Architecture.md §5).
 
-    Built and unit-tested in Phase 3 per the roadmap ("crm_agent.py
-    lookup/view_history only, no writes yet"), but not yet wired into
-    router_agent's dispatch table - the router's own direct-SQL path
-    already covers crm_lookup for Phase 3's demoable chat flow. This agent
-    becomes load-bearing in Phase 4, when `update_field` needs
-    entity_resolution to safely identify a write target (raw SQL can't do
-    that safely - see the propose/confirm pattern in Architecture.md §5).
+    `lookup`/`view_history` were built in Phase 3; the router's own
+    direct-SQL path covered `crm_lookup` for that phase's demo instead of
+    dispatching here. In Phase 4, RouterAgent's `crm_write` category
+    dispatches to this agent's `update_field` path, which uses
+    entity_resolution to safely identify a write target - raw SQL can't do
+    that safely, so every write is propose-only and lands through
+    crm_mutations.py only after a human confirms.
     """
 
     def __init__(self):
@@ -60,21 +57,19 @@ class CRMAgent:
             parsed = await self._sub_agent.run(message, user_id="crm_agent")
         except (LLMTransientError, LLMOutputValidationError, CircuitOpenError) as exc:
             logger.warning(f"CRM agent classification failed: {exc}")
-            return _UNAVAILABLE_MESSAGE
+            return UNAVAILABLE_MESSAGE
 
         if parsed.intent == "lookup":
-            return self.handle_lookup(db, parsed.target_hint or message)
+            return self.handle_lookup(db, parsed.target_hint, message)
         if parsed.intent == "view_history":
-            return self.handle_view_history(db, active_entity_id, parsed.target_hint or message)
-        return ChatMessage(
-            type="text",
-            content="Updating a customer record through chat isn't available in this build yet.",
-            status="final",
+            return self.handle_view_history(db, active_entity_id, parsed.target_hint, message)
+        return self.handle_update_field(
+            db, active_entity_id, parsed.target_hint, message, parsed.field_name, parsed.field_value
         )
 
-    def handle_lookup(self, db: Session, target_hint: str) -> ChatMessage:
+    def handle_lookup(self, db: Session, target_hint: str | None, raw_message: str) -> ChatMessage:
         candidates = list_customers(db, limit=1000)
-        customer = resolve_entity(candidates, target_hint, target_hint)
+        customer = resolve_entity(candidates, target_hint, raw_message)
         if not customer:
             return _NOT_FOUND
 
@@ -86,12 +81,12 @@ class CRMAgent:
         return ChatMessage(type="text", content="\n".join(lines), status="final")
 
     def handle_view_history(
-        self, db: Session, active_entity_id: str | None, target_hint: str
+        self, db: Session, active_entity_id: str | None, target_hint: str | None, raw_message: str
     ) -> ChatMessage:
         customer_id = active_entity_id
         if not customer_id:
             candidates = list_customers(db, limit=1000)
-            resolved = resolve_entity(candidates, target_hint, target_hint)
+            resolved = resolve_entity(candidates, target_hint, raw_message)
             customer_id = resolved.id if resolved else None
 
         if not customer_id:
@@ -113,6 +108,67 @@ class CRMAgent:
         else:
             lines.append("  No tickets on file.")
         return ChatMessage(type="text", content="\n".join(lines), status="final")
+
+    def handle_update_field(
+        self,
+        db: Session,
+        active_entity_id: str | None,
+        target_hint: str | None,
+        raw_message: str,
+        field_name: str | None,
+        field_value: str | None,
+    ) -> ChatMessage:
+        if not field_name or field_value is None:
+            return ChatMessage(
+                type="text",
+                content="I didn't catch what field to change or what to set it to.",
+                status="final",
+            )
+
+        customer = get_customer(db, active_entity_id) if active_entity_id else None
+        if not customer:
+            candidates = list_customers(db, limit=1000)
+            customer = resolve_entity(candidates, target_hint, raw_message)
+        if not customer:
+            return _NOT_FOUND
+
+        normalized_field = normalize_customer_field(field_name)
+        if normalized_field is None:
+            supported = ", ".join(CUSTOMER_FIELD_LABELS.values())
+            return ChatMessage(
+                type="text",
+                content=f"'{field_name}' isn't a field I can update. I can update: {supported}.",
+                status="final",
+            )
+
+        before_value = getattr(customer, normalized_field)
+        return ChatMessage(
+            type="action-confirmation",
+            content=(
+                f"Change {customer.full_name}'s {normalized_field} from "
+                f"'{before_value}' to '{field_value}'?"
+            ),
+            status="pending_confirmation",
+            action_diff=ActionDiff(
+                before={normalized_field: before_value}, after={normalized_field: field_value}
+            ),
+            pending_action=PendingAction(
+                token=create_action_token(
+                    action_type="update_field",
+                    entity_type="customer",
+                    entity_id=customer.id,
+                    field_name=normalized_field,
+                    field_value=field_value,
+                ),
+                action_type="update_field",
+                entity_type="customer",
+                entity_id=customer.id,
+                field_name=normalized_field,
+                field_value=field_value,
+            ),
+            resolved_entity_id=customer.id,
+            resolved_entity_type="customer",
+        )
 
 
 crm_agent = CRMAgent()

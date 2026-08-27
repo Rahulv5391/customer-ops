@@ -4,6 +4,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.agents.base_agent import BaseSubAgent
+from app.agents.crm_agent import crm_agent
+from app.agents.escalation_agent import escalation_agent
+from app.agents.messages import UNAVAILABLE_MESSAGE
 from app.agents.queue_agent import queue_agent
 from app.core.exceptions import CircuitOpenError, LLMOutputValidationError, LLMTransientError
 from app.core.observability import get_logger, new_trace
@@ -13,16 +16,8 @@ from app.schemas.chat import ChatMessage
 
 logger = get_logger("router_agent")
 
-_UNAVAILABLE_MESSAGE = ChatMessage(
-    type="error",
-    content="The AI assistant is temporarily unavailable. Please try again in a moment.",
-    status="final",
-)
-
 _NOT_YET_BUILT = {
-    "crm_write": "Making changes to a customer record through chat isn't available in this build yet.",
     "policy_qa": "Answering policy questions from the knowledge base isn't available in this build yet.",
-    "escalation": "Filing an escalation through chat isn't available in this build yet.",
     "analytics_query": "Reporting/analytics questions aren't available in this build yet.",
 }
 
@@ -69,13 +64,23 @@ class RouterAgent:
                 parsed = await self._sub_agent.run(prompt_context, user_id=agent_name)
             except (LLMTransientError, LLMOutputValidationError, CircuitOpenError) as exc:
                 logger.warning(f"Router classification failed: {exc}")
-                return _UNAVAILABLE_MESSAGE
+                return UNAVAILABLE_MESSAGE
 
             if parsed.category == "crm_lookup":
                 return self._execute_read_path(db, parsed.sql_query)
 
+            if parsed.category == "crm_write":
+                return await crm_agent.handle_message(db, message, active_entity_id)
+
             if parsed.category == "queue_availability":
-                return await queue_agent.handle_message(db, message)
+                return await queue_agent.handle_message(
+                    db, message, active_entity_id, active_entity_type
+                )
+
+            if parsed.category == "escalation":
+                return await escalation_agent.handle_message(
+                    db, message, active_entity_id, active_entity_type
+                )
 
             if parsed.category == "greeting":
                 return ChatMessage(

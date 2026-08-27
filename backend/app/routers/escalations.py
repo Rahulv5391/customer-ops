@@ -4,12 +4,10 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.crud import escalation as escalation_crud
 from app.models.agent import SupportAgent
-from app.schemas.escalation import EscalationResponse
-from app.services.auth_service import get_current_agent
+from app.schemas.escalation import EscalationResolve, EscalationResponse
+from app.services import audit_service
+from app.services.auth_service import get_current_agent, require_team_lead
 
-# PATCH /escalations/{id} (approve/reject) is deliberately deferred to
-# Phase 4 - it needs audit_service.py and the team_lead-only enforcement
-# path that ships alongside it (Architecture.md §9, Phase 4).
 router = APIRouter(prefix="/escalations", tags=["escalations"])
 
 
@@ -41,3 +39,28 @@ def get_escalation(
     if not escalation:
         raise HTTPException(status_code=404, detail="Escalation not found")
     return escalation
+
+
+@router.patch("/{escalation_id}", response_model=EscalationResponse)
+def resolve_escalation(
+    escalation_id: str,
+    payload: EscalationResolve,
+    db: Session = Depends(get_db),
+    agent: SupportAgent = Depends(require_team_lead),
+):
+    escalation = escalation_crud.get_escalation(db, escalation_id)
+    if not escalation:
+        raise HTTPException(status_code=404, detail="Escalation not found")
+    if payload.status not in ("approved", "rejected"):
+        raise HTTPException(status_code=400, detail="status must be 'approved' or 'rejected'")
+
+    updated = escalation_crud.resolve_escalation(db, escalation, payload.status, payload.rejection_note)
+    audit_service.record_activity(
+        db,
+        actor=agent.full_name,
+        action_type="resolve_escalation",
+        entity_type="escalation",
+        entity_id=updated.id,
+        summary=f"{payload.status.capitalize()} escalation {updated.escalation_number}",
+    )
+    return updated

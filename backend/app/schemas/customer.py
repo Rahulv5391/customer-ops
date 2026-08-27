@@ -28,6 +28,7 @@ class CustomerCreate(CustomerBase):
 
 class CustomerUpdate(BaseModel):
     full_name: str | None = None
+    email: str | None = None
     phone: str | None = None
     company: str | None = None
     account_tier: str | None = None

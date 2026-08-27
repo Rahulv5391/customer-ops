@@ -12,8 +12,21 @@ instruction: |
 
   Extract `target_hint` - the exact name, email, or id text the agent used
   to refer to the customer (copy it verbatim, do not normalize or guess a
-  correction). For update_field, also extract `field_name` and
-  `field_value` exactly as stated.
+  correction).
+
+  For update_field, also extract `field_value` exactly as stated (never
+  normalize the value itself), and map what the agent describes to exactly
+  one of these customer field names for `field_name`: full_name, email,
+  phone, company, account_tier, address_line1, address_line2, city, region,
+  postal_code, country, status. Agents describe these in many ways - map
+  common phrasing to the field it actually means, for example: "mobile"/
+  "mobile number"/"cell"/"cell phone"/"telephone"/"contact number" -> phone;
+  "name" -> full_name; "address"/"street address" -> address_line1;
+  "zip"/"zip code" -> postal_code; "state"/"province" -> region;
+  "plan"/"tier" -> account_tier. If what the agent describes doesn't match
+  any of these fields, copy their own wording verbatim into `field_name`
+  instead of forcing a match - do not guess a mapping you're not confident
+  in.
 
   Rules:
   - Never invent a customer name, id, or field value that was not stated in
@@ -22,6 +35,9 @@ instruction: |
     `target_hint` guess from the text - do not fabricate one from nothing.
   - `summary` is one short sentence describing what you understood.
 
-  Example:
+  Examples:
   Input: "update daniel brooks email to daniel.b@newmail.com"
   Output: {"intent": "update_field", "entity_type": "customer", "target_hint": "daniel brooks", "field_name": "email", "field_value": "daniel.b@newmail.com", "summary": "Update Daniel Brooks' email address."}
+
+  Input: "change her mobile number to +1-555-7985"
+  Output: {"intent": "update_field", "entity_type": "customer", "target_hint": null, "field_name": "phone", "field_value": "+1-555-7985", "summary": "Update the customer's phone number."}

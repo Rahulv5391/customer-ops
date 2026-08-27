@@ -17,3 +17,9 @@ class LLMOutputValidationError(AppError):
 
 class CircuitOpenError(AppError):
     """This agent's circuit breaker is open - fail fast, don't call the LLM."""
+
+
+class EntityNotFoundError(AppError):
+    """A confirmed chat action targeted an entity_id that doesn't exist -
+    a real bug (stale id, tampered payload), not a fabricated record
+    (Architecture.md §8)."""

@@ -17,10 +17,18 @@ class ActionDiff(BaseModel):
 
 
 class PendingAction(BaseModel):
-    """The exact payload the frontend must echo back to `/chat/action/confirm`
-    when the agent clicks confirm - mirrors ActionConfirmRequest field-for-
-    field so the frontend never has to reconstruct it from display text."""
+    """What the frontend renders, plus the signed proof it echoes back to
+    `/chat/action/confirm`.
 
+    `token` is the only thing the confirm endpoint actually trusts - it's a
+    signed encoding of the fields below, produced server-side by
+    action_token.create_action_token when this proposal was generated. The
+    plain fields exist for the frontend to display/log, but are never
+    re-read by confirm, so a client can't submit a different amount/entity
+    than what was actually proposed (Architecture.md §5/§6).
+    """
+
+    token: str
     action_type: str
     entity_type: str
     entity_id: str
@@ -56,13 +64,11 @@ class ChatResponse(BaseModel):
 
 
 class ActionConfirmRequest(BaseModel):
-    action_type: str
-    entity_type: str
-    entity_id: str
-    field_name: str | None = None
-    field_value: str | None = None
-    escalation_payload: dict | None = None
-    # confirmed_by is likewise derived from the authenticated session.
+    """The confirm endpoint executes exactly what `token` decodes to - see
+    PendingAction.token. confirmed_by is likewise derived from the
+    authenticated session, never client-supplied."""
+
+    token: str
 
 
 class ActionConfirmResponse(BaseModel):
