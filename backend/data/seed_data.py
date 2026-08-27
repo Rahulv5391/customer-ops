@@ -23,6 +23,7 @@ from app.models.note import CustomerNote
 from app.models.order import Order, OrderItem
 from app.models.ticket import Ticket, TicketEvent
 from app.services import rag_service
+from app.services.document_extraction import compute_content_hash
 
 random.seed(42)
 
@@ -358,111 +359,107 @@ def seed_escalations(db, tickets: list[Ticket], agents: list[SupportAgent]) -> l
     return escalations
 
 
-def _kb_content(sections: list[dict]) -> str:
-    return json.dumps({"sections": sections})
-
-
 KB_DOCUMENTS = [
     dict(
         title="Refund Policy",
         category="policy",
         version="v2",
         source_updated_at="March 2026",
-        content_json=_kb_content(
-            [
-                {
-                    "heading": "Standard Refund Window",
-                    "content": "Orders may be refunded in full within 30 days of delivery, provided the item is unused or defective.",
-                },
-                {
-                    "heading": "Refunds Outside the Window",
-                    "content": "Refund requests made after 30 days require a team-lead approval via the Escalation Queue.",
-                },
-                {
-                    "heading": "Damaged Items",
-                    "content": "Damaged-item refunds require photo evidence attached to the ticket before processing.",
-                },
-            ]
-        ),
+        sections=[
+            {
+                "heading": "Standard Refund Window",
+                "content": "Orders may be refunded in full within 30 days of delivery, provided the item is unused or defective.",
+            },
+            {
+                "heading": "Refunds Outside the Window",
+                "content": "Refund requests made after 30 days require a team-lead approval via the Escalation Queue.",
+            },
+            {
+                "heading": "Damaged Items",
+                "content": "Damaged-item refunds require photo evidence attached to the ticket before processing.",
+            },
+        ],
     ),
     dict(
         title="Support SLA Policy",
         category="sop",
         version="v3",
         source_updated_at="February 2026",
-        content_json=_kb_content(
-            [
-                {
-                    "heading": "First Response Targets",
-                    "content": "P1 tickets: 4 hours. P2: 12 hours. P3: 24 hours. P4: 48 hours.",
-                },
-                {
-                    "heading": "Breach Handling",
-                    "content": "Any P1 breach must be logged as an SLA Exception escalation for review.",
-                },
-            ]
-        ),
+        sections=[
+            {
+                "heading": "First Response Targets",
+                "content": "P1 tickets: 4 hours. P2: 12 hours. P3: 24 hours. P4: 48 hours.",
+            },
+            {
+                "heading": "Breach Handling",
+                "content": "Any P1 breach must be logged as an SLA Exception escalation for review.",
+            },
+        ],
     ),
     dict(
         title="Shipping & Delivery FAQ",
         category="faq",
         version="v1",
         source_updated_at="January 2026",
-        content_json=_kb_content(
-            [
-                {
-                    "heading": "Standard Delivery Times",
-                    "content": "Domestic orders arrive within 5-7 business days. International orders may take 10-15 business days.",
-                },
-                {
-                    "heading": "Lost or Delayed Packages",
-                    "content": "If a package is more than 3 business days late, offer to reship or issue a shipping credit.",
-                },
-            ]
-        ),
+        sections=[
+            {
+                "heading": "Standard Delivery Times",
+                "content": "Domestic orders arrive within 5-7 business days. International orders may take 10-15 business days.",
+            },
+            {
+                "heading": "Lost or Delayed Packages",
+                "content": "If a package is more than 3 business days late, offer to reship or issue a shipping credit.",
+            },
+        ],
     ),
     dict(
         title="Account & Security FAQ",
         category="faq",
         version="v1",
         source_updated_at="December 2025",
-        content_json=_kb_content(
-            [
-                {
-                    "heading": "Password Resets",
-                    "content": "Direct customers to the self-serve reset link; agents cannot reset passwords directly.",
-                },
-                {
-                    "heading": "Updating Billing Email",
-                    "content": "Billing email changes require verification of the current email on file before updating.",
-                },
-            ]
-        ),
+        sections=[
+            {
+                "heading": "Password Resets",
+                "content": "Direct customers to the self-serve reset link; agents cannot reset passwords directly.",
+            },
+            {
+                "heading": "Updating Billing Email",
+                "content": "Billing email changes require verification of the current email on file before updating.",
+            },
+        ],
     ),
     dict(
         title="Canned Responses - Retention",
         category="canned_response",
         version="v4",
         source_updated_at="March 2026",
-        content_json=_kb_content(
-            [
-                {
-                    "heading": "Cancellation Save Offer",
-                    "content": "Thanks for letting us know. Before you go, we'd like to offer 15% off your next renewal - would that help?",
-                },
-                {
-                    "heading": "Retention Discount Limits",
-                    "content": "Discounts above 15% require a team-lead approval via the Escalation Queue (Retention Offer Override).",
-                },
-            ]
-        ),
+        sections=[
+            {
+                "heading": "Cancellation Save Offer",
+                "content": "Thanks for letting us know. Before you go, we'd like to offer 15% off your next renewal - would that help?",
+            },
+            {
+                "heading": "Retention Discount Limits",
+                "content": "Discounts above 15% require a team-lead approval via the Escalation Queue (Retention Offer Override).",
+            },
+        ],
     ),
 ]
 
 
 def seed_kb_documents(db) -> list[KBDocument]:
     print("Seeding Knowledge Base Documents...")
-    docs = [KBDocument(**doc) for doc in KB_DOCUMENTS]
+    docs = [
+        KBDocument(
+            title=doc["title"],
+            category=doc["category"],
+            version=doc["version"],
+            source_updated_at=doc["source_updated_at"],
+            content_json=json.dumps({"sections": doc["sections"]}),
+            content_hash=compute_content_hash(doc["sections"]),
+        )
+        for doc in KB_DOCUMENTS
+    ]
     db.add_all(docs)
     db.commit()
 

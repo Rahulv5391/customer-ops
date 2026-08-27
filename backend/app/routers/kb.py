@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+import json
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.crud import kb_document as kb_crud
 from app.models.agent import SupportAgent
-from app.schemas.kb_document import KBDocumentCreate, KBDocumentResponse, KBDocumentUpdate
+from app.models.kb_document import KBDocument
+from app.schemas.kb_document import KBDocumentResponse, KBDocumentUpdate
 from app.services import rag_service
 from app.services.auth_service import get_current_agent
+from app.services.document_extraction import compute_content_hash, extract_pdf_sections
 
 router = APIRouter(prefix="/kb", tags=["kb"])
 
@@ -23,6 +27,61 @@ class KBSearchHit(BaseModel):
     version: str
     source_updated_at: str
     section: str
+
+
+def _create_and_ingest(
+    db: Session,
+    *,
+    title: str,
+    category: str,
+    version: str,
+    source_updated_at: str,
+    sections: list[dict],
+    source_filename: str | None,
+) -> KBDocument:
+    """The actual create logic behind POST /kb/upload.
+
+    A KBDocument row is only ever committed *after* it has been
+    successfully ingested into Chroma (flush -> ingest -> commit, rollback
+    on failure) - so the row's mere existence in the table is itself the
+    proof it was ingested. No separate ingestion-status field is needed:
+    a document can never exist in a half-ingested state (see the Phase 6
+    dispatch decision note in Architecture.md for the one caveat this
+    doesn't cover - Chroma isn't part of the SQL transaction, so a failure
+    partway through Chroma's own delete+add isn't rolled back by us).
+    """
+    content_hash = compute_content_hash(sections)
+    existing = kb_crud.get_by_content_hash(db, content_hash)
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"This content is already ingested as document "
+                f"'{existing.title}' (id={existing.id}) - update that document instead."
+            ),
+        )
+
+    document = KBDocument(
+        title=title,
+        category=category,
+        version=version,
+        source_updated_at=source_updated_at,
+        content_json=json.dumps({"sections": sections}),
+        source_filename=source_filename,
+        content_hash=content_hash,
+    )
+    db.add(document)
+    db.flush()
+    try:
+        rag_service.ingest_document(document)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Failed to ingest document into the knowledge base: {exc}"
+        )
+    db.commit()
+    db.refresh(document)
+    return document
 
 
 @router.get("", response_model=list[KBDocumentResponse])
@@ -46,15 +105,40 @@ def get_document(
     return document
 
 
-@router.post("", response_model=KBDocumentResponse, status_code=201)
-def create_document(
-    payload: KBDocumentCreate,
+@router.post("/upload", response_model=KBDocumentResponse, status_code=201)
+def upload_document(
+    title: str = Form(...),
+    category: str = Form("faq"),
+    version: str = Form("v1"),
+    source_updated_at: str = Form(...),
+    file: UploadFile = File(...),
     db: Session = Depends(get_db),
     _agent: SupportAgent = Depends(get_current_agent),
 ):
-    document = kb_crud.create_document(db, payload)
-    rag_service.ingest_document(document)
-    return document
+    """Create a KB document from an uploaded PDF - text is extracted one
+    section per page (see document_extraction.extract_pdf_sections for why
+    that's a deliberately simple strategy) and ingested the same way as the
+    JSON path. `content_hash` (from the extracted text) is the only
+    identity signal used for duplicate detection - `file.filename` is
+    stored purely as descriptive metadata, so two unrelated documents
+    sharing a filename can never collide, and the same content re-uploaded
+    under a different filename is still caught."""
+    if file.content_type != "application/pdf" and not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF uploads are supported")
+
+    sections = extract_pdf_sections(file.file.read())
+    if not sections:
+        raise HTTPException(status_code=400, detail="No extractable text found in this PDF")
+
+    return _create_and_ingest(
+        db,
+        title=title,
+        category=category,
+        version=version,
+        source_updated_at=source_updated_at,
+        sections=sections,
+        source_filename=file.filename,
+    )
 
 
 @router.patch("/{document_id}", response_model=KBDocumentResponse)
@@ -67,9 +151,68 @@ def update_document(
     document = kb_crud.get_document(db, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    updated = kb_crud.update_document(db, document, payload)
-    rag_service.ingest_document(updated)
-    return updated
+    # Metadata-only - content can only change via PATCH /kb/{id}/upload,
+    # so there's never a re-ingest to trigger here.
+    return kb_crud.update_document(db, document, payload)
+
+
+@router.patch("/{document_id}/upload", response_model=KBDocumentResponse)
+def upload_document_update(
+    document_id: str,
+    version: str | None = Form(None),
+    source_updated_at: str | None = Form(None),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _agent: SupportAgent = Depends(get_current_agent),
+):
+    """Re-ingest a new PDF into an *existing* document id - this, not
+    filename matching, is how you push an updated revision of a known
+    document (Architecture.md §5/6)."""
+    document = kb_crud.get_document(db, document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if file.content_type != "application/pdf" and not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF uploads are supported")
+
+    sections = extract_pdf_sections(file.file.read())
+    if not sections:
+        raise HTTPException(status_code=400, detail="No extractable text found in this PDF")
+
+    new_hash = compute_content_hash(sections)
+    if new_hash == document.content_hash:
+        # Byte-identical re-upload of the same document - true no-op.
+        return document
+
+    conflict = kb_crud.get_by_content_hash(db, new_hash)
+    if conflict and conflict.id != document.id:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"This content is already ingested as document "
+                f"'{conflict.title}' (id={conflict.id})."
+            ),
+        )
+
+    document.content_hash = new_hash
+    document.content_json = json.dumps({"sections": sections})
+    document.source_filename = file.filename
+    if version is not None:
+        document.version = version
+    if source_updated_at is not None:
+        document.source_updated_at = source_updated_at
+
+    db.flush()
+    try:
+        rag_service.ingest_document(document)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Failed to re-ingest document into the knowledge base: {exc}"
+        )
+    db.commit()
+    db.refresh(document)
+    return document
 
 
 @router.delete("/{document_id}", status_code=204)

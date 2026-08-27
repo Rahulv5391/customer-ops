@@ -10,16 +10,16 @@ class KBDocumentBase(BaseModel):
     source_updated_at: str
 
 
-class KBDocumentCreate(KBDocumentBase):
-    content_json: str = "{}"
-
-
 class KBDocumentUpdate(BaseModel):
+    """Metadata-only edits - content can only be changed via
+    PATCH /kb/{id}/upload (a new PDF), never a hand-typed JSON body
+    (Architecture.md §5/6 - removed after a direct call that nobody
+    hand-authors KB content as JSON in practice)."""
+
     title: str | None = None
     category: str | None = None
     version: str | None = None
     source_updated_at: str | None = None
-    content_json: str | None = None
 
 
 class KBDocumentResponse(KBDocumentBase):
@@ -27,4 +27,6 @@ class KBDocumentResponse(KBDocumentBase):
 
     id: str
     content_json: str
+    source_filename: str | None = None
+    content_hash: str
     created_at: datetime

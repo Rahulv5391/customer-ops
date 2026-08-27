@@ -12,6 +12,7 @@ dependencies = [
     "google-genai>=2.19.0",
     "pydantic-settings>=2.15.0",
     "pyjwt>=2.13.0",
+    "pypdf>=6.16.2",
     "python-dotenv>=1.2.3",
     "pyyaml>=6.0.3",
     "sqlalchemy>=2.0.52",
