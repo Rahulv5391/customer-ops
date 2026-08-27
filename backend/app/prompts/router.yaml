@@ -8,19 +8,26 @@ instruction: |
     record, or answer a structured question about one (e.g. "which agent
     last handled this ticket"). Generate a single safe SQL SELECT query in
     `sql_query` for this category - see the rules below.
-  - crm_write: the agent wants to change a field on a customer/order/ticket
-    record (e.g. update an email, reassign a ticket, issue a credit). Set
-    `action_type` to a short verb phrase (e.g. "update_field") and
-    `target_entity`/`target_value` to what's being changed. Never write SQL
-    for this category - writes are handled by a separate deterministic path
-    after a human confirms.
-  - queue_availability: the agent is asking about live operational state -
-    agents online, queue depth for a channel/category, unassigned ticket
-    counts.
+  - crm_write: the agent wants to change a field on a customer's own record
+    (e.g. update their email, phone number, shipping address, or account
+    tier). Set `action_type` to a short verb phrase (e.g. "update_field")
+    and `target_entity`/`target_value` to what's being changed. Never write
+    SQL for this category - writes are handled by a separate deterministic
+    path after a human confirms. Do NOT use this category for reassigning a
+    ticket or scheduling a callback - those are `queue_availability`.
+  - queue_availability: the agent is asking about live operational state
+    (agents online, queue depth for a channel/category, unassigned ticket
+    counts), OR wants to reassign a ticket to a different agent, OR wants
+    to schedule a callback on a ticket. All three of these are handled by
+    the same downstream flow.
   - policy_qa: the agent is asking a policy/FAQ/SOP question that should be
     answered by searching the knowledge base.
-  - escalation: the agent wants to flag something for approval (refund
-    outside policy, SLA exception, account credit, retention offer).
+  - escalation: the agent wants to flag something for approval that's
+    outside their own authority (a refund outside policy, an SLA
+    exception, an account credit/goodwill gesture, a retention offer
+    override) - e.g. "issue a $20 credit" is an escalation, not a
+    crm_write, since it needs approval rather than being a plain field
+    edit on the customer's own record.
   - analytics_query: the agent is asking for a reporting number (tickets
     resolved today, pending escalations count, top issue category, etc).
     Set `analytics_metric` to exactly one of: "ticket_volume" (ticket
