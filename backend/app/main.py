@@ -9,6 +9,7 @@ from app import models  # noqa: F401 - registers all models on Base.metadata
 from app.routers import (
     activity_log,
     agents,
+    analytics,
     auth,
     chat,
     customers,
@@ -63,5 +64,6 @@ for router_module in (
     data_sources,
     activity_log,
     chat,
+    analytics,
 ):
     app.include_router(router_module.router, prefix=settings.api_v1_prefix)

@@ -14,12 +14,9 @@ from app.core.observability import get_logger, new_trace
 from app.core.sql_security import SQLSecurityViolation, execute_safe_read_query
 from app.prompts.loader import load_prompt
 from app.schemas.chat import ChatMessage
+from app.services import analytics_service
 
 logger = get_logger("router_agent")
-
-_NOT_YET_BUILT = {
-    "analytics_query": "Reporting/analytics questions aren't available in this build yet.",
-}
 
 
 class RouterOutput(BaseModel):
@@ -36,6 +33,16 @@ class RouterOutput(BaseModel):
     action_type: str | None = None
     target_entity: str | None = None
     target_value: str | None = None
+    analytics_metric: (
+        Literal[
+            "summary",
+            "ticket_volume",
+            "top_categories",
+            "escalations_pending",
+            "tickets_resolved_today",
+        ]
+        | None
+    ) = None
     reasoning: str = ""
 
 
@@ -85,21 +92,23 @@ class RouterAgent:
                     db, message, active_entity_id, active_entity_type
                 )
 
+            if parsed.category == "analytics_query":
+                return self._execute_analytics_path(db, parsed.analytics_metric)
+
             if parsed.category == "greeting":
                 return ChatMessage(
                     type="text",
                     content=(
                         "Hi! I can help you look up customers, check queue "
-                        "availability, answer policy questions, and propose "
-                        "account changes or escalations. What do you need?"
+                        "availability, answer policy questions, propose "
+                        "account changes or escalations, and pull up reporting "
+                        "numbers. What do you need?"
                     ),
                     status="final",
                 )
 
             return ChatMessage(
-                type="text",
-                content=_NOT_YET_BUILT.get(parsed.category, "That capability isn't available yet."),
-                status="final",
+                type="text", content="That capability isn't available yet.", status="final"
             )
 
     def _build_prompt(
@@ -150,6 +159,51 @@ class RouterAgent:
             resolved_entity_id=resolved_entity_id,
             resolved_entity_type=resolved_entity_type,
         )
+
+    def _execute_analytics_path(self, db: Session, metric: str | None) -> ChatMessage:
+        """Deterministic aggregation, no second LLM call - matches
+        Architecture.md §5's "no dedicated 5th agent" design (the same
+        reasoning that keeps `queue_availability` CRUD-based rather than
+        LLM-generated SQL): the numbers come straight from
+        analytics_service, the router's own single classification call is
+        the only LLM involved.
+        """
+        metric = metric or "summary"
+
+        if metric == "ticket_volume":
+            points = analytics_service.ticket_volume_by_day(db, days=7)
+            lines = [f"{p['date']}: {p['count']} tickets" for p in points]
+            content = "Ticket volume, last 7 days:\n" + "\n".join(lines)
+
+        elif metric == "top_categories":
+            rows = analytics_service.top_issue_category(db, limit=5)
+            if not rows:
+                content = "No ticket category data yet."
+            else:
+                lines = [f"{r['category']}: {r['count']} tickets" for r in rows]
+                content = "Top issue categories:\n" + "\n".join(lines)
+
+        elif metric == "escalations_pending":
+            count = analytics_service.pending_escalations_count(db)
+            content = f"Pending escalations: {count}"
+
+        elif metric == "tickets_resolved_today":
+            count = analytics_service.tickets_resolved_today(db)
+            content = f"Tickets resolved today: {count}"
+
+        else:  # "summary"
+            data = analytics_service.get_summary(db)
+            total_volume = sum(p["count"] for p in data["ticket_volume_7d"])
+            lines = [f"Ticket volume (last 7 days): {total_volume} total"]
+            if data["avg_resolution_time_hours"] is not None:
+                lines.append(f"Avg resolution time: {data['avg_resolution_time_hours']} hours")
+            if data["csat_average"] is not None:
+                lines.append(f"CSAT average: {data['csat_average']} / 5")
+            if data["deflection_rate"] is not None:
+                lines.append(f"Deflection rate: {data['deflection_rate'] * 100:.1f}%")
+            content = "\n".join(lines)
+
+        return ChatMessage(type="text", content=content, status="final")
 
 
 router_agent = RouterAgent()
