@@ -27,11 +27,24 @@ class Settings(BaseSettings):
 
     # If true, agents run in a no-LLM-key fallback mode instead of failing startup
     demo_mode: bool = False
-
-    # RAG (services/rag_service.py, agents/rag_agent.py, Phase 5)
-    rag_min_similarity: float = 0.55
-    rag_top_k: int = 4
+    
+    rag_min_similarity: float = 0.40
+    # 3, not 4 - lowered once chunks stopped being whole pages (see
+    # chunk_target_words below): fewer, smaller, more precisely-relevant
+    # chunks beat more/broader ones now that a chunk is ~150 words instead
+    # of a whole page.
+    rag_top_k: int = 3
     chroma_persist_dir: str = "./data/chroma"
+    # PDF chunk sizing (services/document_extraction.py) - 150 words, not a
+    # whole page: measured directly against the actual embedding model
+    # (Chroma's default, MiniLM-L6-v2) that a marker phrase placed near the
+    # end of a ~150+ word passage becomes essentially unfindable (similarity
+    # flatlines at ~0.04, i.e. silently dropped, not just diluted) - a whole
+    # PDF page (commonly 400-800+ words) was silently losing content past
+    # roughly the first 100-150 words. 30-word overlap keeps a sentence
+    # split across two chunks from being orphaned in either one.
+    chunk_target_words: int = 150
+    chunk_overlap_words: int = 30
 
     # Escalation auto-approval (agents/escalation_agent.py, Phase 4)
     auto_approval_threshold_pct: float = 15.0
