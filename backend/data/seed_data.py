@@ -22,6 +22,7 @@ from app.models.kb_document import KBDocument
 from app.models.note import CustomerNote
 from app.models.order import Order, OrderItem
 from app.models.ticket import Ticket, TicketEvent
+from app.services import rag_service
 
 random.seed(42)
 
@@ -464,6 +465,14 @@ def seed_kb_documents(db) -> list[KBDocument]:
     docs = [KBDocument(**doc) for doc in KB_DOCUMENTS]
     db.add_all(docs)
     db.commit()
+
+    # KBDocument.id is a Python-side default assigned at flush, not at
+    # object construction - only populated on `docs` after commit. Reset
+    # first: ids are regenerated fresh on every reseed, so a per-document
+    # delete-then-add can't clean up the previous run's now-orphaned ids.
+    rag_service.reset_collection()
+    for doc in docs:
+        rag_service.ingest_document(doc)
     return docs
 
 

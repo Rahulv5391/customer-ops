@@ -8,6 +8,7 @@ from app.agents.crm_agent import crm_agent
 from app.agents.escalation_agent import escalation_agent
 from app.agents.messages import UNAVAILABLE_MESSAGE
 from app.agents.queue_agent import queue_agent
+from app.agents.rag_agent import rag_agent
 from app.core.exceptions import CircuitOpenError, LLMOutputValidationError, LLMTransientError
 from app.core.observability import get_logger, new_trace
 from app.core.sql_security import SQLSecurityViolation, execute_safe_read_query
@@ -17,7 +18,6 @@ from app.schemas.chat import ChatMessage
 logger = get_logger("router_agent")
 
 _NOT_YET_BUILT = {
-    "policy_qa": "Answering policy questions from the knowledge base isn't available in this build yet.",
     "analytics_query": "Reporting/analytics questions aren't available in this build yet.",
 }
 
@@ -77,6 +77,9 @@ class RouterAgent:
                     db, message, active_entity_id, active_entity_type
                 )
 
+            if parsed.category == "policy_qa":
+                return await rag_agent.handle_message(message)
+
             if parsed.category == "escalation":
                 return await escalation_agent.handle_message(
                     db, message, active_entity_id, active_entity_type
@@ -86,8 +89,9 @@ class RouterAgent:
                 return ChatMessage(
                     type="text",
                     content=(
-                        "Hi! I can help you look up customers and check queue "
-                        "availability right now. What do you need?"
+                        "Hi! I can help you look up customers, check queue "
+                        "availability, answer policy questions, and propose "
+                        "account changes or escalations. What do you need?"
                     ),
                     status="final",
                 )

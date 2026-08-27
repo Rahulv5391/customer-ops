@@ -16,3 +16,6 @@ docs
 
 # Local SQLite database
 *.db
+
+# Persisted Chroma vector store
+data/chroma/

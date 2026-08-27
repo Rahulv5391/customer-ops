@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # RAG (services/rag_service.py, agents/rag_agent.py, Phase 5)
     rag_min_similarity: float = 0.55
     rag_top_k: int = 4
+    chroma_persist_dir: str = "./data/chroma"
 
     # Escalation auto-approval (agents/escalation_agent.py, Phase 4)
     auto_approval_threshold_pct: float = 15.0
