@@ -26,3 +26,11 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `app` isn't an installed package - `python -m pytest` implicitly adds cwd
+# to sys.path (making `app` importable), but `uv run pytest` invokes the
+# pytest console-script entry point directly and does not. Explicit is the
+# fix that works the same way regardless of invocation style.
+pythonpath = ["."]

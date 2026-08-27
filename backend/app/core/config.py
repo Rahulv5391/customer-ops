@@ -27,7 +27,8 @@ class Settings(BaseSettings):
 
     # If true, agents run in a no-LLM-key fallback mode instead of failing startup
     demo_mode: bool = False
-    
+
+    # RAG (services/rag_service.py, agents/rag_agent.py, Phase 5)
     rag_min_similarity: float = 0.40
     # 3, not 4 - lowered once chunks stopped being whole pages (see
     # chunk_target_words below): fewer, smaller, more precisely-relevant
