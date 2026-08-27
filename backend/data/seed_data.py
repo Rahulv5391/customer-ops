@@ -34,9 +34,8 @@ def _days_ago(days: float) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
 
 
-# Every directory agent is also a login identity - one merged table
-# (Architecture.md §4.7), so every roster entry needs credentials, not just
-# a couple of hand-picked demo logins.
+# Every directory agent is also a login identity, so every roster entry
+# needs credentials.
 AGENT_ROSTER = [
     ("Jordan Lee", "jordan.lee@customerops.demo", "team_lead", "Team Lead", "general", True),
     ("Sam Rivera", "sam.rivera@customerops.demo", "support_agent", "Support Agent", "billing", True),
@@ -279,11 +278,7 @@ def seed_escalations(db, tickets: list[Ticket], agents: list[SupportAgent]) -> l
 
     billing_tickets = [t for t in tickets if t.category == "billing"]
 
-    # Each entry's ticket is picked to actually match its narrative (a
-    # refund escalation links to a billing ticket, not a random one), and
-    # the retention case is deliberately ticket_id=None - escalations can
-    # exist without a specific ticket (a proactive account-level case), and
-    # this exercises that nullable path rather than leaving it untested.
+    # One escalation has no ticket_id - escalations can exist standalone.
     plan = [
         (
             "refund_approval",
@@ -463,10 +458,7 @@ def seed_kb_documents(db) -> list[KBDocument]:
     db.add_all(docs)
     db.commit()
 
-    # KBDocument.id is a Python-side default assigned at flush, not at
-    # object construction - only populated on `docs` after commit. Reset
-    # first: ids are regenerated fresh on every reseed, so a per-document
-    # delete-then-add can't clean up the previous run's now-orphaned ids.
+    # Reset the vector store before re-ingesting, since ids change on every reseed.
     rag_service.reset_collection()
     for doc in docs:
         rag_service.ingest_document(doc)

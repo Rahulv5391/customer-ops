@@ -33,16 +33,8 @@ class CRMAgentOutput(BaseModel):
 
 
 class CRMAgent:
-    """Customer lookup + write sub-agent (Architecture.md §5).
-
-    `lookup`/`view_history` were built in Phase 3; the router's own
-    direct-SQL path covered `crm_lookup` for that phase's demo instead of
-    dispatching here. In Phase 4, RouterAgent's `crm_write` category
-    dispatches to this agent's `update_field` path, which uses
-    entity_resolution to safely identify a write target - raw SQL can't do
-    that safely, so every write is propose-only and lands through
-    crm_mutations.py only after a human confirms.
-    """
+    """Customer lookup and field-update sub-agent. Lookups execute
+    directly; field updates are always proposed for confirmation first."""
 
     def __init__(self):
         instruction = load_prompt("crm_agent")

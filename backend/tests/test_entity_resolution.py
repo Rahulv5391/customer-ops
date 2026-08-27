@@ -1,8 +1,6 @@
-"""resolve_entity's match tiers, in order: exact id -> exact email ->
-exact full_name -> name token-subset. Deliberately no fuzzy/Levenshtein
-matching (Architecture.md §5) - an unresolvable typo must return None,
-never a guess, so that's tested as explicitly as the positive matches.
-"""
+"""Tests resolve_entity's match tiers: exact id, exact email, exact
+full name, then name token-subset. No fuzzy matching - unresolved returns
+None."""
 
 from types import SimpleNamespace
 

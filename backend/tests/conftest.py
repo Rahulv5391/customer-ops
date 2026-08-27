@@ -1,19 +1,6 @@
-"""Test-session bootstrap.
-
-Points the app at an isolated, throwaway SQLite DB and Chroma directory
-(under the OS temp dir, never the developer's real customer_ops.db/data/chroma)
-*before* any `app.*` module is imported - `app.core.config`/`app.core.database`
-read these env vars at import time, so this must run first. Pytest guarantees
-conftest.py loads before test module collection, which is what makes this safe.
-
-DEMO_MODE=true means every agent's `BaseSubAgent.run()` raises
-`LLMTransientError` immediately (see agents/base_agent.py) rather than
-calling the real Gemini API - this suite deliberately tests only the
-deterministic logic (SQL security, entity resolution, circuit breaker,
-CRUD, propose->confirm via signed tokens, analytics aggregation), never
-LLM classification itself, so no network call/API key/rate limit is ever
-needed to run it.
-"""
+"""Points the app at an isolated, throwaway SQLite DB and Chroma directory
+before any app module is imported, and sets DEMO_MODE so tests never call
+the real Gemini API."""
 
 import os
 import tempfile
@@ -35,8 +22,7 @@ from app.models.agent import SupportAgent
 
 @pytest.fixture(autouse=True)
 def _clean_database():
-    """Fresh schema for every test - small enough dataset that per-test
-    drop/create is simpler and safer than tracking manual cleanup."""
+    """Recreates the schema fresh before every test."""
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield

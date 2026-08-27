@@ -2,15 +2,9 @@ from typing import Any
 
 
 def resolve_entity(candidates: list[Any], target_hint: str | None, raw_query: str) -> Any | None:
-    """Resolve a customer/agent/etc. from free text.
-
-    Tiers, tried in order for each candidate text (target_hint first, then
-    the raw query): exact id -> exact email -> exact full_name -> name
-    token-subset (every word of the entity's name appears somewhere in the
-    text). No fuzzy/Levenshtein matching - an unresolvable typo returns
-    None so the caller can ask a clarifying question rather than guess
-    (Architecture.md §5).
-    """
+    """Resolves a customer/agent/etc. from free text. Tries exact id, exact
+    email, exact full name, then a token-subset name match, in that order.
+    Returns None if nothing matches - never guesses."""
     for candidate_text in (target_hint, raw_query):
         if not candidate_text:
             continue

@@ -1,5 +1,4 @@
-"""Aggregates all model imports so Base.metadata.create_all() discovers every
-table without relying on router-import side effects (Architecture.md §3)."""
+"""Imports every model so Base.metadata.create_all() can find them all."""
 
 from app.models.agent import SupportAgent
 from app.models.audit_log import ActivityLog

@@ -15,7 +15,7 @@ class DataSource(Base):
     connector_type: Mapped[str] = mapped_column(String(30))
     sync_status: Mapped[str] = mapped_column(String(20), default="healthy")
     sync_health_pct: Mapped[int] = mapped_column(default=100)
-    # Mock-only JSON blobs - no live connections (Architecture.md §4.10).
+    # Mock-only JSON blobs - no live connections.
     tables_schema: Mapped[str] = mapped_column(Text, default="[]")
     sync_logs: Mapped[str] = mapped_column(Text, default="[]")
     last_synced_at: Mapped[datetime | None] = mapped_column(default=None)

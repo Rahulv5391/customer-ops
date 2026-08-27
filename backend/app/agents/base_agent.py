@@ -24,10 +24,8 @@ def _has_real_api_key() -> bool:
 
 
 class BaseSubAgent(Generic[TOutput]):
-    """Thin wrapper around a Google ADK Agent + Runner that turns a prompt
-    string into a validated Pydantic object, with retry + circuit-breaker
-    protection (Architecture.md §5).
-    """
+    """Wraps a Google ADK Agent + Runner, turning a prompt into a validated
+    Pydantic object, with retries and circuit-breaker protection."""
 
     def __init__(
         self,

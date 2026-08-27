@@ -1,7 +1,4 @@
-"""Open/reset transitions for the per-agent failure tracker
-(core/circuit_breaker.py) - the thing that makes a stuck/failing LLM
-provider fail fast instead of hanging every subsequent chat call.
-"""
+"""Tests the circuit breaker's open/reset state transitions."""
 
 import time
 

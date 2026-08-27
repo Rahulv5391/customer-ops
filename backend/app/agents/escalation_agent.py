@@ -26,12 +26,7 @@ class EscalationAgentOutput(BaseModel):
 
 
 class EscalationAgent:
-    """Escalation-filing sub-agent (Architecture.md §5).
-
-    Always propose-only, even though filing "just" creates a record - it's
-    a mutation with real downstream approval consequences, so it goes
-    through the same propose -> confirm flow as any CRM/queue write.
-    """
+    """Escalation-filing sub-agent. Always proposes; never files directly."""
 
     def __init__(self):
         instruction = load_prompt("escalation_agent")
@@ -52,9 +47,7 @@ class EscalationAgent:
             logger.warning(f"Escalation agent classification failed: {exc}")
             return UNAVAILABLE_MESSAGE
 
-        # Escalation.ticket_id is the only relational anchor on the model
-        # (nullable) - only set it when the active entity actually is a
-        # ticket, never guess one (Architecture.md §4.8).
+        # Only link to a ticket if the active entity actually is one.
         ticket_id = active_entity_id if active_entity_type == "ticket" else None
 
         payload = {

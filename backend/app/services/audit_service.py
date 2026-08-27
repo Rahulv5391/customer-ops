@@ -10,12 +10,7 @@ logger = get_logger("audit_service")
 def record_activity(
     db: Session, actor: str, action_type: str, entity_type: str, entity_id: str, summary: str
 ) -> None:
-    """Best-effort audit trail write.
-
-    A mutation's own commit has already succeeded by the time this is
-    called (see crm_mutations.py) - a failure here must never surface as a
-    failure of the write itself, only get logged (Architecture.md §9).
-    """
+    """Best-effort audit trail write. Failures here are logged, not raised."""
     try:
         _insert_activity(
             db,

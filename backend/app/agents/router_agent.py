@@ -161,13 +161,8 @@ class RouterAgent:
         )
 
     def _execute_analytics_path(self, db: Session, metric: str | None) -> ChatMessage:
-        """Deterministic aggregation, no second LLM call - matches
-        Architecture.md §5's "no dedicated 5th agent" design (the same
-        reasoning that keeps `queue_availability` CRUD-based rather than
-        LLM-generated SQL): the numbers come straight from
-        analytics_service, the router's own single classification call is
-        the only LLM involved.
-        """
+        """Builds the analytics reply from analytics_service - deterministic
+        aggregation, no second LLM call."""
         metric = metric or "summary"
 
         if metric == "ticket_volume":

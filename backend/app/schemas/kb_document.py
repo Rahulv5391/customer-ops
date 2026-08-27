@@ -11,10 +11,7 @@ class KBDocumentBase(BaseModel):
 
 
 class KBDocumentUpdate(BaseModel):
-    """Metadata-only edits - content can only be changed via
-    PATCH /kb/{id}/upload (a new PDF), never a hand-typed JSON body
-    (Architecture.md §5/6 - removed after a direct call that nobody
-    hand-authors KB content as JSON in practice)."""
+    """Metadata-only edits. Content is changed via PATCH /kb/{id}/upload."""
 
     title: str | None = None
     category: str | None = None

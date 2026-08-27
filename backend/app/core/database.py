@@ -9,9 +9,7 @@ connect_args = {"check_same_thread": False} if is_sqlite else {}
 engine = create_engine(settings.database_url, connect_args=connect_args)
 
 if is_sqlite:
-    # SQLite ignores FK constraints unless enforcement is turned on per
-    # connection - without this, every ForeignKey column in app/models is
-    # purely documentation and nothing stops an invalid reference.
+    # SQLite ignores foreign key constraints unless enabled per connection.
     @event.listens_for(engine, "connect")
     def _enable_sqlite_foreign_keys(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()

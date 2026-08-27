@@ -1,10 +1,5 @@
 class AppError(Exception):
-    """Base class for all application-specific errors.
-
-    Subclasses are added in later build phases only when a real code path
-    raises them (see Architecture.md §8) — no speculative/dead exception
-    types.
-    """
+    """Base class for application-specific errors."""
 
 
 class LLMTransientError(AppError):
@@ -20,6 +15,4 @@ class CircuitOpenError(AppError):
 
 
 class EntityNotFoundError(AppError):
-    """A confirmed chat action targeted an entity_id that doesn't exist -
-    a real bug (stale id, tampered payload), not a fabricated record
-    (Architecture.md §8)."""
+    """A confirmed chat action targeted an entity id that doesn't exist."""

@@ -23,8 +23,7 @@ class Escalation(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     policy_citation: Mapped[str | None] = mapped_column(Text, default=None)
     rejection_note: Mapped[str | None] = mapped_column(Text, default=None)
-    # Set server-side from the authenticated user, not client-supplied
-    # (Architecture.md §6 / Auth Design).
+    # Set server-side from the authenticated user.
     requested_by: Mapped[str] = mapped_column(String(150))
     created_at: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(timezone.utc)

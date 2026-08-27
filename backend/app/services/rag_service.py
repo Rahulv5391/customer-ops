@@ -11,19 +11,14 @@ _client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
 
 
 def _get_collection():
-    # Explicit cosine space so similarity = 1 - distance is a well-defined
-    # comparison against RAG_MIN_SIMILARITY (Chroma's default is squared L2,
-    # which has no fixed 0..1 range to threshold against).
+    # Cosine space makes similarity = 1 - distance.
     return _client.get_or_create_collection(
         name=_COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
     )
 
 
 def reset_collection() -> None:
-    """Drop and recreate the collection - the Chroma-side equivalent of
-    seed_data.py's Base.metadata.drop_all/create_all. Necessary because
-    KBDocument.id is regenerated fresh on every reseed, so a per-document
-    delete-then-add can't clean up the previous run's now-orphaned ids."""
+    """Drops and recreates the collection, clearing all documents."""
     try:
         _client.delete_collection(_COLLECTION_NAME)
     except Exception:
@@ -31,12 +26,8 @@ def reset_collection() -> None:
 
 
 def ingest_document(document: KBDocument) -> None:
-    """(Re-)ingest one KBDocument's sections as embedded chunks.
-
-    Deletes any existing chunks for this document_id first, then adds the
-    current sections - idempotent re-ingestion regardless of whether the
-    section count changed since the last ingest (Architecture.md §5).
-    """
+    """Re-ingests one KBDocument's sections as embedded chunks, replacing
+    any existing chunks for that document."""
     collection = _get_collection()
     collection.delete(where={"document_id": document.id})
 
@@ -69,10 +60,7 @@ def remove_document(document_id: str) -> None:
 
 
 def search(query: str, top_k: int | None = None) -> list[dict]:
-    """Returns the top_k most similar chunks, each as
-    {text, similarity, document_title, version, source_updated_at, section},
-    ordered most-similar first. Empty list if the collection has no
-    documents yet."""
+    """Returns the top_k most similar chunks, most similar first."""
     collection = _get_collection()
     if collection.count() == 0:
         return []

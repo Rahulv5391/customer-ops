@@ -5,8 +5,7 @@ from sqlglot import exp
 
 from app.core.exceptions import AppError
 
-# The single canonical SQL validator (Architecture.md §8.1 - the reference
-# had two divergent copies of this, only one actually wired in).
+# Tables an LLM-generated query is allowed to read from.
 ALLOWED_TABLES = {
     "customers",
     "orders",
@@ -25,17 +24,9 @@ class SQLSecurityViolation(AppError):
 
 
 def validate_and_format_query(raw_sql: str) -> tuple[str, str | None]:
-    """Parse, allow-list, and clamp an LLM-generated SQL string.
-
-    The key defense is re-serializing the parsed AST back to SQL and
-    returning THAT string rather than the original raw text — even if the
-    model produced something unparseable-as-a-single-clean-SELECT, only
-    what sqlglot actually parsed as the one Select AST is ever executed.
-
-    Also returns the single table the query reads from, or None if the
-    query joins/references more than one table (in which case a result
-    row's `id` column would be ambiguous as to which entity it names).
-    """
+    """Validates an LLM-generated SQL string, clamps its row limit, and
+    re-serializes it back to SQL. Returns the safe SQL and the single
+    table it reads from, or None if it reads from more than one table."""
     clean_sql = raw_sql.strip().rstrip(";")
 
     try:

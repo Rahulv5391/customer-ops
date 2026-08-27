@@ -5,8 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 class NoteCreate(BaseModel):
     body: str
-    # author is set server-side from the authenticated agent, not
-    # client-supplied (same rule as Escalation.requested_by).
+    # author is set server-side from the authenticated agent.
 
 
 class NoteResponse(BaseModel):

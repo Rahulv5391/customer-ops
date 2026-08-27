@@ -7,9 +7,7 @@ from app.models.agent import SupportAgent
 from app.schemas.audit_log import ActivityLogResponse
 from app.services.auth_service import require_team_lead
 
-# Supervisor tooling, not a general agent screen - matches the original
-# PRD's framing of audit-log-style views as part of the admin/supervisor
-# view (Architecture.md §6).
+# Team-lead only - not a general agent screen.
 router = APIRouter(prefix="/activity-log", tags=["activity-log"])
 
 

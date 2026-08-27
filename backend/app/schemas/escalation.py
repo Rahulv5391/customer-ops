@@ -12,8 +12,7 @@ class EscalationBase(BaseModel):
 
 
 class EscalationCreate(EscalationBase):
-    # requested_by is set server-side from the authenticated user, not
-    # accepted from the client (Architecture.md §6 / Auth Design).
+    # requested_by is set server-side from the authenticated user.
     pass
 
 

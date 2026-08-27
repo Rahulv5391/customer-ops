@@ -43,8 +43,7 @@ def update_agent(db: Session, agent: SupportAgent, updates: AgentUpdate) -> Supp
 
 
 def deactivate_agent(db: Session, agent: SupportAgent) -> SupportAgent:
-    """Soft-delete only: tickets/escalations may still reference this agent's
-    id (assigned_agent_id is now a real FK), so the row must not disappear."""
+    """Soft-delete only - tickets/escalations may still reference this agent."""
     agent.active = False
     agent.on_duty = False
     db.commit()

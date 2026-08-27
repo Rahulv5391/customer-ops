@@ -4,13 +4,8 @@ from app.core.exceptions import CircuitOpenError
 
 
 class CircuitBreaker:
-    """Per-agent failure tracker.
-
-    Opens after `failure_threshold` consecutive failures and stays open for
-    `reset_seconds` before allowing another call through (half-open retry).
-    Extracted into its own module (unlike the reference, which inlined this
-    in base_agent.py) so it's unit-testable in isolation.
-    """
+    """Opens after `failure_threshold` consecutive failures and stays open
+    for `reset_seconds` before allowing another call through."""
 
     def __init__(self, failure_threshold: int, reset_seconds: float):
         self.failure_threshold = failure_threshold

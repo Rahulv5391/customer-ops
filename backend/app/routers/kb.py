@@ -39,17 +39,8 @@ def _create_and_ingest(
     sections: list[dict],
     source_filename: str | None,
 ) -> KBDocument:
-    """The actual create logic behind POST /kb/upload.
-
-    A KBDocument row is only ever committed *after* it has been
-    successfully ingested into Chroma (flush -> ingest -> commit, rollback
-    on failure) - so the row's mere existence in the table is itself the
-    proof it was ingested. No separate ingestion-status field is needed:
-    a document can never exist in a half-ingested state (see the Phase 6
-    dispatch decision note in Architecture.md for the one caveat this
-    doesn't cover - Chroma isn't part of the SQL transaction, so a failure
-    partway through Chroma's own delete+add isn't rolled back by us).
-    """
+    """Creates a KB document and ingests it into Chroma. Commits only if
+    ingestion succeeds; rolls back the DB insert otherwise."""
     content_hash = compute_content_hash(sections)
     existing = kb_crud.get_by_content_hash(db, content_hash)
     if existing:
@@ -115,14 +106,8 @@ def upload_document(
     db: Session = Depends(get_db),
     _agent: SupportAgent = Depends(get_current_agent),
 ):
-    """Create a KB document from an uploaded PDF - text is extracted one
-    section per page (see document_extraction.extract_pdf_sections for why
-    that's a deliberately simple strategy) and ingested the same way as the
-    JSON path. `content_hash` (from the extracted text) is the only
-    identity signal used for duplicate detection - `file.filename` is
-    stored purely as descriptive metadata, so two unrelated documents
-    sharing a filename can never collide, and the same content re-uploaded
-    under a different filename is still caught."""
+    """Creates a KB document from an uploaded PDF. Duplicate detection is
+    based on content hash, not filename."""
     if file.content_type != "application/pdf" and not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF uploads are supported")
 
@@ -151,8 +136,7 @@ def update_document(
     document = kb_crud.get_document(db, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    # Metadata-only - content can only change via PATCH /kb/{id}/upload,
-    # so there's never a re-ingest to trigger here.
+    # Metadata only - content changes go through PATCH /kb/{id}/upload.
     return kb_crud.update_document(db, document, payload)
 
 
@@ -165,9 +149,7 @@ def upload_document_update(
     db: Session = Depends(get_db),
     _agent: SupportAgent = Depends(get_current_agent),
 ):
-    """Re-ingest a new PDF into an *existing* document id - this, not
-    filename matching, is how you push an updated revision of a known
-    document (Architecture.md §5/6)."""
+    """Re-ingests a new PDF into an existing document id."""
     document = kb_crud.get_document(db, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -181,7 +163,7 @@ def upload_document_update(
 
     new_hash = compute_content_hash(sections)
     if new_hash == document.content_hash:
-        # Byte-identical re-upload of the same document - true no-op.
+        # Same content already ingested - nothing to do.
         return document
 
     conflict = kb_crud.get_by_content_hash(db, new_hash)
@@ -233,9 +215,5 @@ def search_kb(
     payload: KBSearchRequest,
     _agent: SupportAgent = Depends(get_current_agent),
 ):
-    """Direct RAG search, bypassing chat - for admin/testing use, not the
-    chat orchestration path (Architecture.md §6). Requires authentication
-    like every other endpoint in this app (Architecture.md's Auth Design
-    originally left this "optional" - resolved to require auth for
-    consistency, since no other public surface exists yet)."""
+    """Direct knowledge base search, bypassing chat."""
     return rag_service.search(payload.query)

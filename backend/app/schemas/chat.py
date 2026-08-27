@@ -7,8 +7,7 @@ class ChatRequest(BaseModel):
     message: str
     active_entity_id: str | None = None
     active_entity_type: str | None = None
-    # user_id/role are deliberately NOT accepted here - they're derived
-    # server-side from the authenticated JWT (Architecture.md §6).
+    # user_id/role come from the authenticated JWT, not the request body.
 
 
 class ActionDiff(BaseModel):
@@ -17,16 +16,9 @@ class ActionDiff(BaseModel):
 
 
 class PendingAction(BaseModel):
-    """What the frontend renders, plus the signed proof it echoes back to
-    `/chat/action/confirm`.
-
-    `token` is the only thing the confirm endpoint actually trusts - it's a
-    signed encoding of the fields below, produced server-side by
-    action_token.create_action_token when this proposal was generated. The
-    plain fields exist for the frontend to display/log, but are never
-    re-read by confirm, so a client can't submit a different amount/entity
-    than what was actually proposed (Architecture.md §5/§6).
-    """
+    """The proposed action shown to the agent, plus a signed token proving
+    it. `/chat/action/confirm` only trusts the token, not the plain fields
+    below (which are for display only)."""
 
     token: str
     action_type: str
@@ -51,10 +43,9 @@ class ChatMessage(BaseModel):
     pending_action: PendingAction | None = None
     citations: list[Citation] | None = None
     status: Literal["final", "pending_confirmation"] | None = None
-    # Set when this turn's lookup unambiguously resolved to one entity - the
-    # frontend should echo these back as active_entity_id/active_entity_type
-    # on the next ChatRequest so "them"/"this customer" can resolve without
-    # the agent having to restate the id (Architecture.md §6).
+    # Set when this turn's lookup resolved to exactly one entity. The
+    # frontend echoes these back as active_entity_id/active_entity_type
+    # on the next request.
     resolved_entity_id: str | None = None
     resolved_entity_type: str | None = None
 
@@ -64,9 +55,7 @@ class ChatResponse(BaseModel):
 
 
 class ActionConfirmRequest(BaseModel):
-    """The confirm endpoint executes exactly what `token` decodes to - see
-    PendingAction.token. confirmed_by is likewise derived from the
-    authenticated session, never client-supplied."""
+    """The signed token from a PendingAction, echoed back to confirm it."""
 
     token: str
 

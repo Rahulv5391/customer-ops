@@ -1,9 +1,4 @@
-"""Covers the one call site in this codebase allowed to execute
-LLM-generated SQL (RouterAgent._execute_read_path via
-core/sql_security.py) - the allow-list is the actual trust boundary
-between "the LLM wrote a query" and "that query touches the database",
-so every rule here is security-relevant, not incidental correctness.
-"""
+"""Tests the SQL allow-list that gates LLM-generated queries."""
 
 import pytest
 
@@ -68,10 +63,7 @@ def test_table_outside_allow_list_is_rejected():
 
 
 def test_password_hash_column_is_not_blocked_by_name_but_agents_table_is_allowed():
-    # agents.password_hash isn't in a separate forbidden-columns list - the
-    # router prompt is responsible for never asking for it (Architecture.md
-    # §5) - this test documents that the allow-list operates at the table
-    # level, not column level, so it doesn't itself stop this query.
+    # The allow-list operates at the table level, not the column level.
     sql, table = validate_and_format_query("SELECT password_hash FROM agents")
     assert table == "agents"
 

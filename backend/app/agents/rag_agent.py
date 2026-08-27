@@ -21,29 +21,17 @@ _NOT_FOUND_MESSAGE = ChatMessage(
 
 
 class RAGAgentLLMOutput(BaseModel):
-    """What the LLM actually decides, given passages the agent already
-    retrieved deterministically. Citation metadata (document_title,
-    version, source_updated_at, section) is never asked of the LLM - it
-    comes straight from the retrieved chunks themselves, so a citation can
-    never be something the model invented (Architecture.md §5)."""
+    """The LLM's answer and self-reported confidence, given retrieved
+    passages. Citation metadata comes from the passages, not the LLM."""
 
     answer: str
     confidence: Literal["grounded", "insufficient"]
 
 
 class RAGAgent:
-    """Policy/FAQ sub-agent (Architecture.md §5). Always direct-execute -
-    read-only by nature, no propose/confirm needed.
-
-    Similarity-threshold refusal lives here, not in rag_service: a
-    below-threshold (or empty) retrieval result short-circuits to a
-    deterministic refusal without even calling the LLM - cheaper, and
-    guarantees "not found" never depends on the model's cooperation. A
-    retrieval that clears the threshold still goes to the LLM, which can
-    independently report `confidence="insufficient"` if the passages don't
-    actually answer what was asked - catching a near-miss the raw
-    similarity score alone wouldn't.
-    """
+    """Policy/FAQ sub-agent. Refuses immediately if the top search result
+    is below the similarity threshold; otherwise asks the LLM to answer
+    from the retrieved passages."""
 
     def __init__(self):
         instruction = load_prompt("rag_agent")
@@ -66,9 +54,7 @@ class RAGAgent:
         if parsed.confidence == "insufficient":
             return _NOT_FOUND_MESSAGE
 
-        # Only cite passages that actually cleared the relevance bar - the
-        # rest of top_k exists to give the LLM context, not to be claimed
-        # as a source for the answer it wrote.
+        # Only cite passages that cleared the relevance bar.
         relevant_hits = [h for h in hits if h["similarity"] >= settings.rag_min_similarity]
         citations = self._build_citations(relevant_hits)
         return ChatMessage(
@@ -86,8 +72,7 @@ class RAGAgent:
         return f"Question: {message}\n\nRetrieved passages:\n{passages}"
 
     def _build_citations(self, hits: list[dict]) -> list[Citation]:
-        # Dedup by (document, section) - multiple chunks can point at the
-        # same section if the LLM retrieved overlapping passages.
+        # Dedup by (document, section).
         seen = set()
         citations = []
         for hit in hits:

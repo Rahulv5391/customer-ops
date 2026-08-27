@@ -39,17 +39,8 @@ def confirm_action(
     db: Session = Depends(get_db),
     agent: SupportAgent = Depends(get_current_agent),
 ):
-    """The deterministic write endpoint (Architecture.md §5/§6).
-
-    A regex/type-dispatch re-parse of the confirmed payload, never another
-    LLM call - no write ever happens on the LLM's turn. `confirmed_by` is
-    taken from the authenticated session, not the request body.
-
-    Execution is driven entirely by what `payload.token` decodes to, not by
-    any other client-supplied field - the token is the signed proof that
-    this exact action was actually proposed by the agent's own chat turn,
-    not fabricated or altered by the calling client.
-    """
+    """Executes a proposed action after confirmation. Only trusts what the
+    signed token decodes to, never any other field in the request."""
     try:
         action = decode_action_token(payload.token)
     except ValueError as exc:

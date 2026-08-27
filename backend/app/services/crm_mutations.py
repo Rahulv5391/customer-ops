@@ -14,18 +14,10 @@ from app.schemas.escalation import EscalationCreate
 from app.schemas.ticket import TicketEventCreate, TicketUpdate
 from app.services import audit_service
 
-# The single allow-list of customer fields chat is permitted to write -
-# derived from CustomerUpdate so it can never drift from the API's own
-# writable-field contract (Architecture.md §5, CRMAgent update_field).
+# Customer fields that can be updated through chat.
 ALLOWED_CUSTOMER_FIELDS = set(CustomerUpdate.model_fields.keys())
 
-# The LLM extracts field_name from free text ("mobile number", "zip code")
-# rather than the actual column name - never trust it to phrase things the
-# way the schema does. This is the deterministic safety net: common agent
-# phrasing mapped to the one real column it means, checked in addition to
-# (never instead of) ALLOWED_CUSTOMER_FIELDS. No fuzzy matching - an unlisted
-# phrase falls through to "not a field I can update" rather than a guess,
-# matching entity_resolution's no-fuzzy-matching philosophy.
+# Maps common field phrasing (e.g. "mobile number") to the real column name.
 _FIELD_ALIASES = {
     "name": "full_name",
     "customer name": "full_name",
@@ -60,13 +52,10 @@ _FIELD_ALIASES = {
     "account status": "status",
 }
 
-# Escalation types where a dollar/percent amount can be auto-approved -
-# an SLA exception or retention offer has no such number to compare.
+# Escalation types that can be auto-approved based on a dollar/percent amount.
 _AMOUNT_BASED_ESCALATION_TYPES = {"account_credit", "refund_approval"}
 
-# Human-readable labels for ALLOWED_CUSTOMER_FIELDS, in a sensible display
-# order - used only to tell the agent what IS supported when a field fails
-# to resolve, so "isn't a field I can update" is actionable, not a dead end.
+# Human-readable labels for ALLOWED_CUSTOMER_FIELDS.
 CUSTOMER_FIELD_LABELS = {
     "full_name": "full name",
     "email": "email",
@@ -154,8 +143,7 @@ def schedule_callback(db: Session, ticket_id: str, callback_time: str, actor: st
     if not ticket:
         raise EntityNotFoundError(f"Ticket {ticket_id} not found")
 
-    # No separate callback entity - recorded as a TicketEvent, matching the
-    # reassignment pattern (Architecture.md §5, QueueAgent).
+    # Callbacks are recorded as a ticket event, not a separate entity.
     ticket_crud.add_ticket_event(
         db,
         ticket_id=ticket.id,

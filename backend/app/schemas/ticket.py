@@ -6,8 +6,7 @@ from pydantic import BaseModel, ConfigDict
 class TicketEventCreate(BaseModel):
     event_type: str
     detail: str = ""
-    # actor is set server-side from the authenticated agent, not
-    # client-supplied (same rule as Escalation.requested_by).
+    # actor is set server-side from the authenticated agent.
 
 
 class TicketEventResponse(BaseModel):

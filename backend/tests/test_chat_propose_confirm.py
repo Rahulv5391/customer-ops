@@ -1,11 +1,5 @@
-"""The propose -> confirm round trip (Architecture.md §4/§5/§6): a signed
-action token proves a write matches what was actually proposed, and
-`/chat/action/confirm` executes exactly what the token decodes to, never
-any other client-supplied field. Exercised directly via
-`create_action_token`, bypassing the LLM classification step entirely -
-this suite never calls the real router/agents, only the deterministic
-mutation + token-verification logic underneath them.
-"""
+"""Tests the propose -> confirm write flow directly via create_action_token,
+without going through the LLM classification step."""
 
 from app.core.security import hash_password
 from app.crud import customer as customer_crud

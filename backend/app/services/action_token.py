@@ -4,8 +4,7 @@ import jwt
 
 from app.core.config import settings
 
-# Short-lived - a pending action is meant to be confirmed within the same
-# chat turn, not stashed and replayed later.
+# How long a pending action's confirmation token stays valid.
 ACTION_TOKEN_EXPIRY_MINUTES = 5
 
 
@@ -17,14 +16,7 @@ def create_action_token(
     field_value: str | None = None,
     escalation_payload: dict | None = None,
 ) -> str:
-    """Sign the exact fields of a proposed action (Architecture.md §5/§6).
-
-    `/chat/action/confirm` executes only what's encoded in this token, never
-    any client-supplied fields alongside it - otherwise a tampered or
-    fabricated confirm request (different amount, different entity_id) would
-    be indistinguishable from one the agent actually saw and approved,
-    which would quietly defeat the whole point of propose -> confirm.
-    """
+    """Signs the fields of a proposed action into a short-lived token."""
     now = datetime.now(timezone.utc)
     payload = {
         "action_type": action_type,

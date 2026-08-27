@@ -6,16 +6,13 @@ from sqlalchemy.orm import Session
 from app.models.escalation import Escalation
 from app.models.ticket import Ticket, TicketEvent
 
-# A ticket is considered wrapped up (feeds resolution-time/CSAT/deflection)
-# once it reaches either of these statuses - matches data/seed_data.py's
-# own seeding logic, which sets resolved_at for exactly this pair.
+# Statuses that count as a ticket being wrapped up.
 _RESOLVED_STATUSES = ("resolved", "closed")
 
 
 def ticket_volume_by_day(db: Session, days: int = 7) -> list[dict]:
-    """One point per calendar day for the last `days` days (including
-    today), zero-filled for days with no tickets - a chart with silent
-    gaps looks broken, not "no data" (Architecture.md §4)."""
+    """One point per calendar day for the last `days` days, including
+    today, zero-filled for days with no tickets."""
     today = datetime.now(timezone.utc).date()
     start = today - timedelta(days=days - 1)
 
@@ -36,10 +33,7 @@ def ticket_volume_by_day(db: Session, days: int = 7) -> list[dict]:
 
 
 def avg_resolution_time_hours(db: Session) -> float | None:
-    """Average of resolved_at - created_at, in hours, over resolved
-    tickets. Computed in Python over the (small, demo-scope) row set
-    rather than in-SQL datetime arithmetic, which SQLite doesn't handle
-    natively - avoids a DB-specific query for a handful of rows."""
+    """Average of resolved_at - created_at, in hours, over resolved tickets."""
     resolved = db.query(Ticket).filter(Ticket.resolved_at.isnot(None)).all()
     if not resolved:
         return None
@@ -53,12 +47,8 @@ def csat_average(db: Session) -> float | None:
 
 
 def deflection_rate(db: Session) -> float | None:
-    """Proportion of AI-touched tickets (a TicketEvent with
-    actor == "AI Assistant") that reached a resolved status without ever
-    being escalated, over all AI-touched tickets regardless of their
-    current status. An approximation, not a precise session-level metric -
-    there's no persisted chat-session table to derive this from directly
-    (Architecture.md §10)."""
+    """Proportion of AI-touched tickets that resolved without being
+    escalated, out of all AI-touched tickets."""
     ai_touched_ids = {
         row[0]
         for row in db.query(TicketEvent.ticket_id)

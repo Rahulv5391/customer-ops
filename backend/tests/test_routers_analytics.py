@@ -1,8 +1,5 @@
-"""Builds a small, fully deterministic dataset directly via the ORM
-(bypassing the API) so every aggregation has an exact expected value -
-these are the "analytics aggregation correctness" cases from the Phase 7
-roadmap (Architecture.md §9).
-"""
+"""Builds a small, deterministic dataset directly via the ORM so every
+analytics aggregation has an exact expected value."""
 
 from datetime import datetime, timedelta, timezone
 
