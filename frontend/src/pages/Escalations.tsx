@@ -42,12 +42,12 @@ export function Escalations() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="mb-6 shrink-0">
+      <div className="mb-6 shrink-0 animate-fade-in-up">
         <div className="flex items-center gap-3 mb-1">
           <div className="w-10 h-10 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-xl flex items-center justify-center">
             <ShieldCheck size={20} />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Escalation Queue</h2>
+          <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Escalation Queue</h2>
         </div>
         <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Review and approve actions that require Team Lead authorization.</p>
       </div>
@@ -56,13 +56,13 @@ export function Escalations() {
         {escalations.length === 0 ? (
           <EmptyState icon={ShieldCheck} title="All Caught Up" description="There are no pending escalations requiring your review." />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-6 stagger">
             {escalations.map(esc => (
-              <div key={esc.id} className="card-surface p-5 flex flex-col dark:bg-gray-800 dark:border-gray-700">
+              <div key={esc.id} className="card-surface p-5 flex flex-col">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">{esc.escalation_number}</span>
+                      <span className="font-data text-sm font-bold text-slate-900 dark:text-white">{esc.escalation_number}</span>
                       <Badge variant={esc.priority === 'urgent' ? 'danger' : esc.priority === 'high' ? 'warning' : 'neutral'}>{esc.priority}</Badge>
                     </div>
                     <span className="text-[10px] font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 px-2 py-0.5 rounded uppercase tracking-wider">{esc.escalation_type.replace(/_/g, ' ')}</span>

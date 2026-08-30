@@ -26,17 +26,17 @@ export function ActivityLog() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="mb-6 shrink-0">
+      <div className="mb-6 shrink-0 animate-fade-in-up">
         <div className="flex items-center gap-3 mb-1">
           <div className="w-10 h-10 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-xl flex items-center justify-center">
             <ScrollText size={20} />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">System Activity Log</h2>
+          <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">System Activity Log</h2>
         </div>
         <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Immutable audit trail of all agent actions and system events.</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700">
+      <div className="flex-1 overflow-y-auto scrollbar-thin bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 animate-fade-in-up" style={{ animationDelay: '80ms' }}>
         {logs.length === 0 ? (
           <EmptyState icon={ScrollText} title="No Activity" description="No system activity has been recorded yet." />
         ) : (
@@ -52,7 +52,7 @@ export function ActivityLog() {
             <div className="divide-y divide-slate-100 dark:divide-gray-700/50">
               {logs.map(log => (
                 <div key={log.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-slate-50 dark:hover:bg-gray-700/30 transition-colors group">
-                  <div className="col-span-2 pl-2 text-xs text-slate-500 dark:text-gray-400">
+                  <div className="col-span-2 pl-2 font-data text-xs text-slate-500 dark:text-gray-400">
                     {new Date(log.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </div>
                   <div className="col-span-3 flex items-center gap-3">

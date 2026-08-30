@@ -33,17 +33,17 @@ export function TicketQueue() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="mb-6 shrink-0">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Ticket Queue</h2>
+      <div className="mb-6 shrink-0 animate-fade-in-up">
+        <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Ticket Queue</h2>
         <p className="text-sm text-slate-500 dark:text-gray-400">Manage incoming support requests across channels</p>
       </div>
 
       <div className="flex-1 overflow-auto scrollbar-thin">
         <div className="flex flex-col gap-8 min-w-max pb-6">
-          {board.map(row => {
+          {board.map((row, rowIdx) => {
             const Icon = channelIcons[row.channel] || MessageSquare;
             return (
-              <div key={row.channel} className="flex flex-col">
+              <div key={row.channel} className="flex flex-col animate-fade-in-up" style={{ animationDelay: `${rowIdx * 80}ms` }}>
                 <div className="flex items-center gap-2 mb-4 sticky left-0 w-max">
                   <Icon size={20} className="text-brand-600 dark:text-brand-400" />
                   <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 capitalize">{row.channel} Channel</h3>
@@ -57,15 +57,15 @@ export function TicketQueue() {
                         </span>
                         <Badge variant="neutral">{col.tickets.length}</Badge>
                       </div>
-                      <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-3 stagger">
                         {col.tickets.map(t => (
-                          <div 
-                            key={t.id} 
+                          <div
+                            key={t.id}
                             onClick={() => navigate(`/tickets/${t.id}`)}
-                            className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 cursor-pointer hover:border-brand-400 dark:hover:border-brand-500 hover:shadow-md transition-all group"
+                            className="card-interactive bg-white dark:bg-gray-800 p-4 group"
                           >
                             <div className="flex justify-between items-start mb-2 gap-2">
-                              <span className="text-xs font-medium text-slate-500 dark:text-gray-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">#{t.ticket_number}</span>
+                              <span className="font-data text-xs font-medium text-slate-500 dark:text-gray-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">#{t.ticket_number}</span>
                               {t.priority === 'urgent' && <AlertCircle size={14} className="text-red-500 shrink-0" />}
                             </div>
                             <div className="font-medium text-sm text-slate-900 dark:text-white mb-4 line-clamp-2">{t.subject}</div>

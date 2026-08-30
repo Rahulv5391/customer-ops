@@ -83,13 +83,13 @@ export function KnowledgeBase() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0 animate-fade-in-up">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-xl flex items-center justify-center">
               <BookOpen size={20} />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Knowledge Base</h2>
+            <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Knowledge Base</h2>
           </div>
           <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Manage policies, SOPs, and FAQS used by the AI agent.</p>
         </div>
@@ -114,9 +114,9 @@ export function KnowledgeBase() {
         ) : docs.length === 0 ? (
           <EmptyState icon={FileText} title="No Documents" description={search ? "No matches found for your search." : "Upload documents to train the AI assistant."} />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-6 stagger">
             {docs.map(doc => (
-              <div key={doc.id} className="card-surface p-5 flex flex-col dark:bg-gray-800 dark:border-gray-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors">
+              <div key={doc.id} className="card-interactive p-5 flex flex-col">
                 <div className="flex justify-between items-start mb-3 gap-4">
                   <h3 className="font-semibold text-slate-900 dark:text-white line-clamp-2">{doc.title}</h3>
                   <Badge variant={
@@ -137,7 +137,7 @@ export function KnowledgeBase() {
                 <div className="space-y-2 text-xs mt-4">
                   <div className="flex justify-between">
                     <span className="text-slate-500 dark:text-gray-400 font-medium">Version</span>
-                    <span className="font-semibold text-slate-900 dark:text-slate-200">v{doc.version}</span>
+                    <span className="font-data font-semibold text-slate-900 dark:text-slate-200">{doc.version}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500 dark:text-gray-400 font-medium">Updated</span>

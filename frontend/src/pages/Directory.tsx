@@ -21,13 +21,13 @@ export function Directory() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0 animate-fade-in-up">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-xl flex items-center justify-center">
               <Users size={20} />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Agent Directory</h2>
+            <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Agent Directory</h2>
           </div>
           <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Find team members and check availability.</p>
         </div>
@@ -53,9 +53,9 @@ export function Directory() {
         {agents.length === 0 ? (
           <EmptyState icon={Users} title="No agents found" description="No agents match the selected filters." />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-6 stagger">
             {agents.map(agent => (
-              <div key={agent.id} className="card-surface p-5 flex flex-col dark:bg-gray-800 dark:border-gray-700">
+              <div key={agent.id} className="card-interactive p-5 flex flex-col">
                 <div className="flex justify-between items-start mb-4 gap-4">
                   <div className="flex items-center gap-4">
                     <Avatar name={agent.full_name} size="lg" />

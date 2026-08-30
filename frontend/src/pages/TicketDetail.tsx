@@ -43,13 +43,13 @@ export function TicketDetail() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6 shrink-0">
-        <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-slate-200 dark:hover:bg-gray-800 transition self-start sm:self-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6 shrink-0 animate-fade-in-up">
+        <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-slate-200 dark:hover:bg-gray-800 active:scale-90 transition-all self-start sm:self-auto">
           <ArrowLeft size={20} className="text-slate-600 dark:text-gray-400" />
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-3 mb-1">
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">#{ticket.ticket_number}</h2>
+            <h2 className="font-data text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">#{ticket.ticket_number}</h2>
             <Badge variant="neutral" className="uppercase">{ticket.status.replace('_', ' ')}</Badge>
             <Badge variant={ticket.priority === 'urgent' ? 'danger' : ticket.priority === 'high' ? 'warning' : 'neutral'}>{ticket.priority}</Badge>
           </div>
@@ -103,7 +103,7 @@ export function TicketDetail() {
             <h3 className="font-semibold text-slate-800 dark:text-slate-200">Event Timeline</h3>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 stagger">
             {ticket.events.map(ev => (
               <div key={ev.id} className="flex gap-4">
                 <div className="shrink-0 mt-1 hidden sm:block">

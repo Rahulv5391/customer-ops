@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { chatApi } from '../../api/chat';
 import type { ChatMessage as APIChatMessage } from '../../types';
 import { Send, Bot, Check, ChevronDown } from 'lucide-react';
-import { Button, Spinner } from '../ui';
+import { Button } from '../ui';
 import { useToast } from '../../hooks/useToast';
 
 interface UIChatMessage extends APIChatMessage {
@@ -93,32 +93,37 @@ export function ChatPanel() {
     }
   };
 
-  if (!isOpen) {
-    return (
-      <button 
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-brand-600 text-white rounded-full shadow-lg shadow-brand-500/30 hover:bg-brand-700 hover:scale-105 transition-all flex items-center justify-center z-50 group"
-      >
-        <Bot size={24} className="group-hover:animate-bounce" />
-      </button>
-    );
-  }
-
   return (
-    <div className="fixed bottom-6 right-6 w-[calc(100%-3rem)] sm:w-[380px] h-[600px] max-h-[calc(100vh-6rem)] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl shadow-slate-900/10 border border-slate-200 dark:border-gray-700 flex flex-col z-50 overflow-hidden transform origin-bottom-right transition-all">
-      <div className="p-4 bg-brand-600 text-white flex items-center justify-between shrink-0">
+    <>
+      {/* FAB launcher — stays mounted so it can fade out instead of popping */}
+      <button
+        onClick={() => setIsOpen(true)}
+        aria-hidden={isOpen}
+        className={`fixed bottom-6 right-6 w-14 h-14 text-white rounded-full flex items-center justify-center z-50 group transition-all duration-300 ${isOpen ? 'opacity-0 scale-75 pointer-events-none' : 'opacity-100 scale-100'}`}
+        style={{ background: 'linear-gradient(135deg, var(--color-brand-400), var(--color-brand-700))', boxShadow: '0 10px 24px -6px rgb(20 127 114 / 0.5)' }}
+      >
+        <span className="absolute inset-0 rounded-full bg-brand-500/40 status-pulse text-brand-500" />
+        <Bot size={24} className="relative group-hover:scale-110 transition-transform" />
+      </button>
+
+      {/* Chat drawer — slides + scales in/out from the bottom-right corner */}
+      <div
+        className={`fixed bottom-6 right-6 w-[calc(100%-3rem)] sm:w-[380px] h-[600px] max-h-[calc(100vh-6rem)] bg-white dark:bg-gray-800 rounded-2xl border border-slate-200 dark:border-gray-700 flex flex-col z-50 overflow-hidden origin-bottom-right transition-all duration-300 ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4 pointer-events-none'}`}
+        style={{ transitionTimingFunction: 'var(--ease-out-expo)', boxShadow: 'var(--shadow-pop)' }}
+      >
+      <div className="p-4 text-white flex items-center justify-between shrink-0" style={{ background: 'linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700))' }}>
         <div className="flex items-center gap-2">
           <Bot size={20} />
-          <h3 className="font-semibold text-[15px]">OpsAssist AI</h3>
+          <h3 className="font-display font-semibold text-[15px]">OpsAssist AI</h3>
         </div>
-        <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white hover:bg-white/20 p-1.5 rounded-lg transition">
+        <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white hover:bg-white/20 p-1.5 rounded-lg transition active:scale-90">
           <ChevronDown size={20} />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5 bg-slate-50 dark:bg-gray-900/50 scrollbar-thin">
         {messages.map(msg => (
-          <div key={msg.id} className={`flex ${msg.fromUser ? 'justify-end' : 'justify-start'}`}>
+          <div key={msg.id} className={`flex animate-fade-in-up ${msg.fromUser ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-2xl p-3.5 text-[13px] leading-relaxed ${
               msg.fromUser 
                 ? 'bg-brand-600 text-white rounded-tr-sm shadow-sm' 
@@ -171,10 +176,15 @@ export function ChatPanel() {
           </div>
         ))}
         {loading && (
-          <div className="flex justify-start">
-            <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-2xl rounded-tl-sm p-4 shadow-sm flex items-center gap-2">
-              <Spinner size="sm" className="opacity-50" />
-              <span className="text-xs text-slate-400 font-medium">OpsAssist is thinking...</span>
+          <div className="flex justify-start animate-fade-in-up">
+            <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-2xl rounded-tl-sm p-3.5 shadow-sm flex items-center gap-1.5">
+              {[0, 1, 2].map(i => (
+                <span
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full bg-brand-400"
+                  style={{ animation: 'count-tick 0.9s ease-in-out infinite alternate', animationDelay: `${i * 0.15}s` }}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -193,15 +203,16 @@ export function ChatPanel() {
             placeholder="Type your message..." 
             className="flex-1 bg-slate-100 dark:bg-gray-900 border-transparent focus:bg-white dark:focus:bg-gray-800 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 rounded-xl px-4 py-2.5 text-[13px] outline-none transition-all dark:text-white placeholder:text-slate-400"
           />
-          <button 
+          <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="w-10 h-10 rounded-xl bg-brand-600 text-white flex items-center justify-center hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 transition-colors shadow-sm shadow-brand-500/20"
+            className="w-10 h-10 rounded-xl bg-brand-600 text-white flex items-center justify-center hover:bg-brand-700 active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 transition-all shadow-sm shadow-brand-500/20"
           >
             <Send size={16} className="ml-0.5" />
           </button>
         </form>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

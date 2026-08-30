@@ -38,15 +38,15 @@ export function CustomerDetail() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6 shrink-0">
-        <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-slate-200 dark:hover:bg-gray-800 transition self-start md:self-auto">
+      <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6 shrink-0 animate-fade-in-up">
+        <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-slate-200 dark:hover:bg-gray-800 active:scale-90 transition-all self-start md:self-auto">
           <ArrowLeft size={20} className="text-slate-600 dark:text-gray-400" />
         </button>
         <div className="flex items-center gap-4">
           <Avatar name={customer.full_name} size="lg" className="hidden sm:flex" />
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{customer.full_name}</h2>
+              <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">{customer.full_name}</h2>
               <Badge variant={customer.status === 'active' ? 'success' : 'warning'}>{customer.status.replace('_', ' ')}</Badge>
               <Badge variant="info" className="uppercase">{customer.account_tier}</Badge>
             </div>
@@ -126,16 +126,16 @@ export function CustomerDetail() {
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50 dark:bg-gray-900/50">
+          <div key={activeTab} className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50 dark:bg-gray-900/50 animate-fade-in-up">
             {activeTab === 'notes' && (
-              <div className="space-y-6">
+              <div className="space-y-4 stagger">
                 <form onSubmit={handleAddNote} className="card-surface p-4 flex flex-col sm:flex-row gap-3 dark:bg-gray-800 dark:border-gray-700">
                   <Input placeholder="Add a note about this customer..." value={note} onChange={e => setNote(e.target.value)} className="flex-1 dark:bg-gray-900 dark:border-gray-700 dark:text-white" />
                   <Button type="submit" disabled={!note.trim()} className="sm:w-auto w-full">Add Note</Button>
                 </form>
-                <div className="space-y-4">
+                <div className="space-y-4 stagger">
                   {customer.notes.map(n => (
-                    <div key={n.id} className="card-surface p-4 flex gap-4 dark:bg-gray-800 dark:border-gray-700">
+                    <div key={n.id} className="card-surface p-4 flex gap-4">
                       <Avatar name={n.author} size="sm" className="mt-1 shrink-0 hidden sm:flex" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -152,11 +152,11 @@ export function CustomerDetail() {
             )}
             
             {activeTab === 'orders' && (
-              <div className="space-y-4">
+              <div className="space-y-4 stagger">
                 {customer.orders.map(o => (
-                  <div key={o.id} className="card-surface p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 dark:bg-gray-800 dark:border-gray-700">
+                  <div key={o.id} className="card-surface p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                     <div>
-                      <div className="font-semibold text-sm text-slate-900 dark:text-white mb-1">{o.order_number}</div>
+                      <div className="font-data font-semibold text-sm text-slate-900 dark:text-white mb-1">{o.order_number}</div>
                       <div className="text-xs text-slate-500 dark:text-gray-400">{new Date(o.placed_at).toLocaleDateString()} • {o.items.length} items</div>
                     </div>
                     <div className="flex items-center gap-4">
@@ -170,11 +170,11 @@ export function CustomerDetail() {
             )}
 
             {activeTab === 'tickets' && (
-              <div className="space-y-4">
+              <div className="space-y-4 stagger">
                 {customer.tickets.map(t => (
-                  <div key={t.id} onClick={() => navigate(`/tickets/${t.id}`)} className="card-surface p-4 cursor-pointer hover:border-brand-400 dark:hover:border-brand-500 transition dark:bg-gray-800 dark:border-gray-700">
+                  <div key={t.id} onClick={() => navigate(`/tickets/${t.id}`)} className="card-interactive p-4">
                     <div className="flex justify-between mb-2 gap-2">
-                      <span className="font-semibold text-sm text-brand-600 dark:text-brand-400 truncate">#{t.ticket_number}</span>
+                      <span className="font-data font-semibold text-sm text-brand-600 dark:text-brand-400 truncate">#{t.ticket_number}</span>
                       <Badge variant="neutral" className="shrink-0">{t.status.replace('_', ' ')}</Badge>
                     </div>
                     <p className="text-sm text-slate-700 dark:text-slate-200 line-clamp-2">{t.subject}</p>

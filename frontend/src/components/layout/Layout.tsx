@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { ChatPanel } from '../chat/ChatPanel';
@@ -10,6 +10,7 @@ export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const { agent } = useAuth();
+  const location = useLocation();
 
   useEffect(() => {
     if (agent?.role === 'team_lead') {
@@ -25,7 +26,9 @@ export function Layout() {
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Topbar onToggle={() => setSidebarOpen(v => !v)} sidebarOpen={sidebarOpen} pendingEscalations={pendingCount} />
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4 sm:p-6 relative">
-          <Outlet />
+          <div key={location.pathname} className="animate-fade-in-up h-full">
+            <Outlet />
+          </div>
         </main>
       </div>
       <ChatPanel />

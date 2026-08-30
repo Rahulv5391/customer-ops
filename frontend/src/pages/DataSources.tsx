@@ -40,13 +40,13 @@ export function DataSources() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0 animate-fade-in-up">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-xl flex items-center justify-center">
               <Database size={20} />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Data Sources</h2>
+            <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Data Sources</h2>
           </div>
           <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">Manage external system connections and sync status.</p>
         </div>
@@ -57,9 +57,9 @@ export function DataSources() {
         {sources.length === 0 ? (
           <EmptyState icon={Database} title="No Data Sources" description="Connect your first external system to start syncing data." />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6 stagger">
             {sources.map(source => (
-              <div key={source.id} className="card-surface p-5 flex flex-col dark:bg-gray-800 dark:border-gray-700">
+              <div key={source.id} className="card-surface p-5 flex flex-col">
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1.5">{source.name}</h3>

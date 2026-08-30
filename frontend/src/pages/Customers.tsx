@@ -23,9 +23,9 @@ export function Customers() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Customers</h2>
+          <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Customers</h2>
           <p className="text-sm text-slate-500 dark:text-gray-400">Manage and view customer profiles</p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -47,12 +47,12 @@ export function Customers() {
         ) : customers.length === 0 ? (
           <EmptyState icon={Users} title="No customers found" description="Try adjusting your search query." />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-6 stagger">
             {customers.map(c => (
-              <div 
-                key={c.id} 
+              <div
+                key={c.id}
                 onClick={() => navigate(`/customers/${c.id}`)}
-                className="card-surface p-4 cursor-pointer hover:border-brand-400 dark:hover:border-brand-500 transition flex flex-col gap-3"
+                className="card-interactive p-4 flex flex-col gap-3"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3 min-w-0">
