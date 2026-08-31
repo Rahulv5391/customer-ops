@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { chatApi } from '../../api/chat';
 import type { ChatMessage as APIChatMessage } from '../../types';
-import { Send, Bot, Check, ChevronDown } from 'lucide-react';
+import { Send, Bot, Check, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '../ui';
 import { useToast } from '../../hooks/useToast';
 import { MarkdownLite } from './MarkdownLite';
@@ -14,6 +14,7 @@ interface UIChatMessage extends APIChatMessage {
 
 export function ChatPanel() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [messages, setMessages] = useState<UIChatMessage[]>([
     { 
       id: 'welcome', fromUser: false, type: 'text', 
@@ -107,9 +108,23 @@ export function ChatPanel() {
         <Bot size={24} className="relative group-hover:scale-110 transition-transform" />
       </button>
 
-      {/* Chat drawer — slides + scales in/out from the bottom-right corner */}
+      {/* Chat drawer — anchored via bottom-right in BOTH states (never
+          top-0/left-0/inset-0, which would force `top`/`left` to jump from
+          `auto` instead of animating) so toggling fullscreen grows/shrinks
+          real bottom/right/width/height values outward from that same
+          corner instead of sliding in from a different edge. The bottom-
+          and right- utilities live ONLY inside each branch, never in the
+          shared base classes - Tailwind resolves same-property conflicts
+          by stylesheet order, not by position in this string, so having
+          both `bottom-6` and `bottom-0` present at once is a real bug, not
+          just redundant (it's what pushed the fullscreen panel 24px off
+          the top/left edge before this fix). */}
       <div
-        className={`fixed bottom-6 right-6 w-[calc(100%-3rem)] sm:w-[380px] h-[600px] max-h-[calc(100vh-6rem)] bg-white dark:bg-gray-800 rounded-2xl border border-slate-200 dark:border-gray-700 flex flex-col z-50 overflow-hidden origin-bottom-right transition-all duration-300 ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4 pointer-events-none'}`}
+        className={`fixed bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 flex flex-col z-50 overflow-hidden origin-bottom-right transition-all duration-300 ${
+          isFullscreen
+            ? `bottom-0 right-0 w-full h-full rounded-none ${isOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`
+            : `bottom-6 right-6 w-[calc(100%-3rem)] sm:w-[380px] h-[600px] max-h-[calc(100vh-6rem)] rounded-2xl ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4 pointer-events-none'}`
+        }`}
         style={{ transitionTimingFunction: 'var(--ease-out-expo)', boxShadow: 'var(--shadow-pop)' }}
       >
       <div className="p-4 text-white flex items-center justify-between shrink-0" style={{ background: 'linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700))' }}>
@@ -117,12 +132,22 @@ export function ChatPanel() {
           <Bot size={20} />
           <h3 className="font-display font-semibold text-[15px]">OpsAssist AI</h3>
         </div>
-        <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white hover:bg-white/20 p-1.5 rounded-lg transition active:scale-90">
-          <ChevronDown size={20} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsFullscreen(v => !v)}
+            title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+            className="text-white/80 hover:text-white hover:bg-white/20 p-1.5 rounded-lg transition active:scale-90"
+          >
+            {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+          </button>
+          <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white hover:bg-white/20 p-1.5 rounded-lg transition active:scale-90">
+            <ChevronDown size={20} />
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-5 bg-slate-50 dark:bg-gray-900/50 scrollbar-thin">
+      <div className={`flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-gray-900/50 scrollbar-thin ${isFullscreen ? 'flex justify-center' : ''}`}>
+        <div className={`space-y-5 ${isFullscreen ? 'w-full max-w-3xl' : ''}`}>
         {messages.map(msg => (
           <div key={msg.id} className={`flex animate-fade-in-up ${msg.fromUser ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-2xl p-3.5 text-[13px] leading-relaxed ${
@@ -194,14 +219,15 @@ export function ChatPanel() {
           </div>
         )}
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      <div className="p-3 bg-white dark:bg-gray-800 border-t border-slate-200 dark:border-gray-700 shrink-0">
-        <form 
+      <div className={`p-3 bg-white dark:bg-gray-800 border-t border-slate-200 dark:border-gray-700 shrink-0 ${isFullscreen ? 'flex justify-center' : ''}`}>
+        <form
           onSubmit={e => { e.preventDefault(); handleSend(); }}
-          className="flex items-center gap-2"
+          className={`flex items-center gap-2 ${isFullscreen ? 'w-full max-w-3xl' : ''}`}
         >
-          <input 
+          <input
             type="text" 
             value={input}
             onChange={e => setInput(e.target.value)}
