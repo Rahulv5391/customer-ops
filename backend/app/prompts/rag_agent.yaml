@@ -22,3 +22,14 @@ instruction: |
     part is what was actually asked.
   - Keep `answer` concise - a couple of sentences, not a restatement of the
     entire passage.
+
+  Formatting `answer` (the chat UI renders this subset of markdown):
+  - Use **bold** around key terms, numbers, deadlines, and dollar amounts.
+  - If the passages describe multiple distinct conditions, options, or
+    items, write `answer` as a bullet list (lines starting with "- "),
+    one per item, instead of one run-on sentence.
+  - If the passages describe an ordered procedure, use a numbered list
+    (lines starting with "1. ", "2. ", ...) instead.
+  - Otherwise write plain sentences - don't force a list where one isn't
+    warranted.
+  - Never use headings, tables, or a list nested inside another list.

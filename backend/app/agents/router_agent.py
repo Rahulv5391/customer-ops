@@ -99,10 +99,13 @@ class RouterAgent:
                 return ChatMessage(
                     type="text",
                     content=(
-                        "Hi! I can help you look up customers, check queue "
-                        "availability, answer policy questions, propose "
-                        "account changes or escalations, and pull up reporting "
-                        "numbers. What do you need?"
+                        "Hi! I can help with:\n\n"
+                        "- Looking up customers, tickets, and orders\n"
+                        "- Checking queue availability or reassigning a ticket\n"
+                        "- Answering policy questions from the knowledge base\n"
+                        "- Proposing account changes or escalations\n"
+                        "- Pulling up reporting numbers\n\n"
+                        "What do you need?"
                     ),
                     status="final",
                 )
@@ -144,8 +147,6 @@ class RouterAgent:
         if not rows:
             return ChatMessage(type="text", content="No matching records found.", status="final")
 
-        lines = [", ".join(f"{col}={val}" for col, val in zip(columns, row)) for row in rows[:20]]
-
         resolved_entity_id = None
         resolved_entity_type = None
         if len(rows) == 1 and table and "id" in columns:
@@ -154,11 +155,41 @@ class RouterAgent:
 
         return ChatMessage(
             type="text",
-            content="\n".join(lines),
+            content=self._format_rows_markdown(columns, rows[:20]),
             status="final",
             resolved_entity_id=resolved_entity_id,
             resolved_entity_type=resolved_entity_type,
         )
+
+    def _format_rows_markdown(self, columns: list[str], rows: list[tuple]) -> str:
+        """Renders SQL result rows as markdown the frontend's chat renderer
+        understands - bolded field labels, and a bullet per row once there's
+        more than one, instead of a raw `col=val` dump on one line.
+
+        The router's own prompt always appends a bare `id` column to every
+        query so a single-row result can still be tracked as follow-up
+        context (see `_execute_read_path` above, computed from the raw
+        `columns`/`rows` before this function ever runs) - but that opaque
+        hex id is meaningless to a human reading the chat, so it's dropped
+        from what's actually displayed. A foreign key the agent explicitly
+        asked for (e.g. `assigned_agent_id`) is a different, real answer to
+        their question and is kept."""
+
+        def label(col: str) -> str:
+            return col.replace("_", " ").title()
+
+        def display_pairs(row: tuple) -> list[tuple[str, object]]:
+            pairs = [(col, val) for col, val in zip(columns, row) if col != "id"]
+            return pairs or list(zip(columns, row))  # never show a blank row
+
+        if len(rows) == 1:
+            return "\n".join(f"**{label(col)}:** {val}" for col, val in display_pairs(rows[0]))
+
+        bullets = []
+        for row in rows:
+            fields = " · ".join(f"**{label(col)}:** {val}" for col, val in display_pairs(row))
+            bullets.append(f"- {fields}")
+        return "\n".join(bullets)
 
     def _execute_analytics_path(self, db: Session, metric: str | None) -> ChatMessage:
         """Builds the analytics reply from analytics_service - deterministic

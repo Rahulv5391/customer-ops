@@ -5,6 +5,7 @@ import type { ChatMessage as APIChatMessage } from '../../types';
 import { Send, Bot, Check, ChevronDown } from 'lucide-react';
 import { Button } from '../ui';
 import { useToast } from '../../hooks/useToast';
+import { MarkdownLite } from './MarkdownLite';
 
 interface UIChatMessage extends APIChatMessage {
   id: string;
@@ -129,7 +130,11 @@ export function ChatPanel() {
                 ? 'bg-brand-600 text-white rounded-tr-sm shadow-sm' 
                 : 'bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 text-slate-800 dark:text-slate-200 rounded-tl-sm shadow-sm'
             }`}>
-              <div className="whitespace-pre-wrap">{msg.content}</div>
+              {msg.fromUser ? (
+                <div className="whitespace-pre-wrap">{msg.content}</div>
+              ) : (
+                <MarkdownLite text={msg.content} />
+              )}
               
               {!msg.fromUser && msg.type === 'action-confirmation' && msg.pending_action && (
                 <div className="mt-4 p-3 bg-brand-50/50 dark:bg-brand-900/10 border border-brand-100 dark:border-brand-800/40 rounded-xl">
@@ -166,7 +171,7 @@ export function ChatPanel() {
                   <div className="space-y-1">
                     {msg.citations.map((cit, idx) => (
                       <div key={idx} className="text-xs text-brand-600 dark:text-brand-400 truncate hover:underline cursor-pointer flex items-center gap-1.5">
-                        <span className="opacity-50">[{idx + 1}]</span> {cit.document_title} <span className="opacity-50 text-[10px]">(v{cit.version})</span>
+                        <span className="opacity-50">[{idx + 1}]</span> {cit.document_title} <span className="opacity-50 text-[10px]">({cit.version})</span>
                       </div>
                     ))}
                   </div>
