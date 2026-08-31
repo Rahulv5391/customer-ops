@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { customersApi } from '../api/customers';
 import type { CustomerDetailResponse } from '../types';
 import { Spinner, Avatar, Badge, Button, Input } from '../components/ui';
-import { ArrowLeft, Mail, Phone, MapPin, Building, Calendar } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Building, Calendar, ChevronDown } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 
 export function CustomerDetail() {
@@ -14,6 +14,16 @@ export function CustomerDetail() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'tickets' | 'notes'>('orders');
   const [note, setNote] = useState('');
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+
+  const toggleOrder = (orderId: string) => {
+    setExpandedOrders(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -153,18 +163,65 @@ export function CustomerDetail() {
             
             {activeTab === 'orders' && (
               <div className="space-y-4 stagger">
-                {customer.orders.map(o => (
-                  <div key={o.id} className="card-surface p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                    <div>
-                      <div className="font-data font-semibold text-sm text-slate-900 dark:text-white mb-1">{o.order_number}</div>
-                      <div className="text-xs text-slate-500 dark:text-gray-400">{new Date(o.placed_at).toLocaleDateString()} • {o.items.length} items</div>
+                {customer.orders.map(o => {
+                  const isExpanded = expandedOrders.has(o.id);
+                  return (
+                    <div key={o.id} className="card-surface overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => toggleOrder(o.id)}
+                        aria-expanded={isExpanded}
+                        className="w-full flex flex-col sm:flex-row justify-between sm:items-center gap-4 p-4 text-left hover:bg-slate-50 dark:hover:bg-gray-700/40 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <ChevronDown
+                            size={16}
+                            className={`text-slate-400 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                          />
+                          <div className="min-w-0">
+                            <div className="font-data font-semibold text-sm text-slate-900 dark:text-white mb-1">{o.order_number}</div>
+                            <div className="text-xs text-slate-500 dark:text-gray-400">
+                              {new Date(o.placed_at).toLocaleDateString()} • {o.items.length} item{o.items.length !== 1 ? 's' : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 shrink-0">
+                          <div className="font-medium text-slate-900 dark:text-white">{o.currency} {o.total_amount}</div>
+                          <Badge variant={o.status === 'delivered' ? 'success' : o.status === 'cancelled' ? 'danger' : 'neutral'}>{o.status}</Badge>
+                        </div>
+                      </button>
+
+                      {/* Pure-CSS grid-rows accordion: animates real height (0fr → 1fr)
+                          instead of toggling display, so it grows/shrinks smoothly
+                          without measuring the content in JS. */}
+                      <div
+                        className={`grid transition-all duration-300 ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+                        style={{ transitionTimingFunction: 'var(--ease-out-expo)' }}
+                      >
+                        <div className="overflow-hidden">
+                          <div className="px-4 pb-4 pt-3 border-t border-slate-100 dark:border-gray-700 space-y-2.5">
+                            {o.items.length > 0 ? o.items.map(item => (
+                              <div key={item.id} className="flex items-center gap-3 text-sm">
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-slate-700 dark:text-slate-200 truncate">{item.product_name}</div>
+                                  <div className="font-data text-[11px] text-slate-400 dark:text-gray-500">{item.sku}</div>
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-gray-400 shrink-0 w-24 text-right">
+                                  {item.quantity} × {o.currency} {item.unit_price}
+                                </div>
+                                <div className="font-medium text-slate-900 dark:text-white shrink-0 w-20 text-right">
+                                  {o.currency} {(parseFloat(item.unit_price) * item.quantity).toFixed(2)}
+                                </div>
+                              </div>
+                            )) : (
+                              <div className="text-xs text-slate-400 dark:text-gray-500">No items on this order.</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="font-medium text-slate-900 dark:text-white">{o.currency} {o.total_amount}</div>
-                      <Badge variant={o.status === 'delivered' ? 'success' : o.status === 'cancelled' ? 'danger' : 'neutral'}>{o.status}</Badge>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {customer.orders.length === 0 && <div className="text-center p-8 text-slate-400 dark:text-gray-500 text-sm">No orders found.</div>}
               </div>
             )}

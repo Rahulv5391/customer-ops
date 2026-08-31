@@ -43,9 +43,14 @@ def list_tickets(
 @router.get("/board", response_model=list[TicketBoardChannel])
 def ticket_board(
     db: Session = Depends(get_db),
-    _agent: SupportAgent = Depends(get_current_agent),
+    agent: SupportAgent = Depends(get_current_agent),
 ):
     tickets = ticket_crud.list_tickets(db)
+    if agent.role != "team_lead":
+        # Support agents see their own assigned tickets plus the unassigned
+        # pool (so they can still pick up new work) - never another agent's
+        # assignments. Team leads keep the full, unfiltered queue.
+        tickets = [t for t in tickets if t.assigned_agent_id in (agent.id, None)]
     board = []
     for channel in CHANNELS:
         columns = []
