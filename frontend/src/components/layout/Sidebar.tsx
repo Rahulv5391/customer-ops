@@ -1,7 +1,7 @@
 ﻿import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Inbox, BookOpen, UserSquare2, AlertTriangle, Database, ScrollText, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Inbox, BookOpen, UserSquare2, AlertTriangle, Database, ScrollText } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { Avatar, Badge } from '../ui';
+import { Badge } from '../ui';
 
 interface SidebarProps {
   open: boolean;
@@ -20,7 +20,7 @@ const navItems = [
 ];
 
 export function Sidebar({ open, pendingEscalations }: SidebarProps) {
-  const { agent, logout } = useAuth();
+  const { agent } = useAuth();
   if (!agent) return null;
 
   const isTeamLead = agent.role === 'team_lead';
@@ -60,20 +60,6 @@ export function Sidebar({ open, pendingEscalations }: SidebarProps) {
             </NavLink>
           );
         })}
-      </div>
-
-      <div className="p-4 border-t border-slate-200 dark:border-gray-700 shrink-0 whitespace-nowrap overflow-hidden">
-        <div className="flex items-center gap-3 mb-4">
-          <Avatar name={agent.full_name} size="md" />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">{agent.full_name}</div>
-            <div className="text-xs text-slate-500 dark:text-gray-400 truncate">{agent.role_label}</div>
-          </div>
-        </div>
-        <button onClick={logout} className="btn btn-ghost w-full justify-start text-danger-600 hover:text-danger-700 hover:bg-danger-50 dark:hover:bg-red-900/20">
-          <LogOut size={16} />
-          <span>Sign Out</span>
-        </button>
       </div>
     </aside>
   );

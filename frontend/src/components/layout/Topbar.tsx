@@ -1,4 +1,5 @@
-import { Menu, Sun, Moon, Bell, ChevronDown } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Menu, Sun, Moon, Bell, ChevronDown, LogOut } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
@@ -25,12 +26,28 @@ const routeNames: [string, string][] = [
 
 export function Topbar({ onToggle, pendingEscalations }: TopbarProps) {
   const { theme, toggleTheme } = useTheme();
-  const { agent } = useAuth();
+  const { agent, logout } = useAuth();
   const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const title = routeNames.find(([path]) =>
     path.endsWith('/') ? location.pathname.startsWith(path) : location.pathname === path
   )?.[1] || 'OpsAssist AI';
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onEscape);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onEscape);
+    };
+  }, [menuOpen]);
 
   return (
     <header className="h-16 bg-white dark:bg-gray-800 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between px-4 shrink-0">
@@ -57,9 +74,37 @@ export function Topbar({ onToggle, pendingEscalations }: TopbarProps) {
 
         <div className="h-6 w-px bg-slate-200 dark:bg-gray-700 mx-1" />
 
-        <div className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-gray-700 py-1 px-2 rounded-lg transition">
-          <Avatar name={agent?.full_name || 'Agent'} size="sm" />
-          <ChevronDown size={14} className="text-slate-400" />
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            aria-expanded={menuOpen}
+            className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-gray-700 py-1 px-2 rounded-lg transition"
+          >
+            <Avatar name={agent?.full_name || 'Agent'} size="sm" />
+            <ChevronDown size={14} className={`text-slate-400 transition-transform duration-150 ${menuOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {menuOpen && (
+            <div
+              className="absolute right-0 top-full mt-2 w-56 card-surface overflow-hidden z-50"
+              style={{ animation: 'scale-in 150ms var(--ease-out-expo) both' }}
+            >
+              <div className="flex items-center gap-3 p-3 border-b border-slate-100 dark:border-gray-700">
+                <Avatar name={agent?.full_name || 'Agent'} size="md" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">{agent?.full_name}</div>
+                  <div className="text-xs text-slate-500 dark:text-gray-400 truncate">{agent?.role_label}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => { setMenuOpen(false); logout(); }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger-600 hover:bg-danger-50 dark:hover:bg-red-900/20 transition"
+              >
+                <LogOut size={16} />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

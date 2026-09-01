@@ -26,7 +26,12 @@ export function ChatPanel() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmingMap, setConfirmingMap] = useState<Record<string, boolean>>({});
-  
+  // Last entity the AI itself resolved from a lookup/update reply mid-chat
+  // (e.g. "is there a customer named Carla" -> that customer's id). Used as
+  // a fallback so "her"/"this customer" still resolves when the agent isn't
+  // sitting on that record's own detail page - see getActiveContext below.
+  const [lastResolvedEntity, setLastResolvedEntity] = useState<{ id: string | null; type: string | null }>({ id: null, type: null });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const { toast } = useToast();
@@ -39,7 +44,10 @@ export function ChatPanel() {
     const path = location.pathname;
     if (path.startsWith('/customers/')) return { type: 'customer', id: path.split('/')[2] };
     if (path.startsWith('/tickets/')) return { type: 'ticket', id: path.split('/')[2] };
-    return { type: null, id: null };
+    // Not on a record's own page - fall back to whatever the conversation
+    // itself last resolved, so a follow-up like "change her number" still
+    // knows who "her" is.
+    return lastResolvedEntity;
   };
 
   const handleSend = async () => {
@@ -66,6 +74,9 @@ export function ChatPanel() {
       if (res.messages && res.messages.length > 0) {
         const aiReply = res.messages[res.messages.length - 1];
         setMessages(prev => [...prev, { ...aiReply, id: (Date.now() + 1).toString(), fromUser: false }]);
+        if (aiReply.resolved_entity_id) {
+          setLastResolvedEntity({ id: aiReply.resolved_entity_id, type: aiReply.resolved_entity_type });
+        }
       }
     } catch (e: any) {
       toast.error('Failed to send message');

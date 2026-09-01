@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ticketsApi } from '../api/tickets';
-import type { TicketBoardRow, TicketStatus } from '../types';
-import { Spinner, Avatar, Badge } from '../components/ui';
-import { Inbox, MessageSquare, Phone, Globe, AlertCircle } from 'lucide-react';
+import { customersApi } from '../api/customers';
+import type { TicketBoardRow, TicketStatus, TicketChannel, TicketCategory, TicketPriority, CustomerResponse } from '../types';
+import { Spinner, Avatar, Badge, Button, Modal, Input } from '../components/ui';
+import { Inbox, MessageSquare, Phone, Globe, AlertCircle, Plus } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
 
 const channelIcons: Record<string, any> = {
   email: Inbox,
@@ -20,22 +22,85 @@ const statusColors: Record<TicketStatus, string> = {
   closed: 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-75'
 };
 
+const CHANNEL_OPTIONS: TicketChannel[] = ['email', 'chat', 'phone', 'social'];
+const CATEGORY_OPTIONS: TicketCategory[] = ['billing', 'technical', 'shipping', 'account', 'other'];
+const PRIORITY_OPTIONS: TicketPriority[] = ['low', 'medium', 'high', 'urgent'];
+
+const emptyForm = {
+  customerId: '',
+  subject: '',
+  channel: 'email' as TicketChannel,
+  category: 'other' as TicketCategory,
+  priority: 'medium' as TicketPriority,
+};
+
 export function TicketQueue() {
   const [board, setBoard] = useState<TicketBoardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [customers, setCustomers] = useState<CustomerResponse[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [creating, setCreating] = useState(false);
+
+  const fetchBoard = () => {
+    setLoading(true);
+    ticketsApi.board().then(setBoard).catch(console.error).finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    ticketsApi.board().then(setBoard).catch(console.error).finally(() => setLoading(false));
+    fetchBoard();
   }, []);
+
+  const openCreateModal = () => {
+    setForm(emptyForm);
+    setCreateModalOpen(true);
+    if (customers.length === 0) {
+      setCustomersLoading(true);
+      customersApi.list({ limit: 100 })
+        .then(setCustomers)
+        .catch(() => toast.error('Failed to load customers'))
+        .finally(() => setCustomersLoading(false));
+    }
+  };
+
+  const handleCreateTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.customerId || !form.subject.trim()) return;
+    setCreating(true);
+    try {
+      await ticketsApi.create({
+        customer_id: form.customerId,
+        subject: form.subject.trim(),
+        channel: form.channel,
+        category: form.category,
+        priority: form.priority,
+      });
+      toast.success('Ticket created');
+      setCreateModalOpen(false);
+      fetchBoard();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to create ticket');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   if (loading) return <div className="h-full flex items-center justify-center"><Spinner size="lg" /></div>;
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="mb-6 shrink-0 animate-fade-in-up">
-        <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Ticket Queue</h2>
-        <p className="text-sm text-slate-500 dark:text-gray-400">Manage incoming support requests across channels</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 shrink-0 animate-fade-in-up">
+        <div>
+          <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Ticket Queue</h2>
+          <p className="text-sm text-slate-500 dark:text-gray-400">Manage incoming support requests across channels</p>
+        </div>
+        <Button onClick={openCreateModal} className="shrink-0 w-full sm:w-auto">
+          <Plus size={16} className="mr-1.5" /> New Ticket
+        </Button>
       </div>
 
       <div className="flex-1 overflow-auto scrollbar-thin">
@@ -89,6 +154,74 @@ export function TicketQueue() {
           })}
         </div>
       </div>
+
+      <Modal open={createModalOpen} onClose={() => !creating && setCreateModalOpen(false)} title="New Ticket" size="md">
+        <form onSubmit={handleCreateTicket} className="space-y-5">
+          <div>
+            <label className="label">Customer</label>
+            <select
+              value={form.customerId}
+              onChange={e => setForm(f => ({ ...f, customerId: e.target.value }))}
+              className="input"
+              disabled={customersLoading}
+              required
+            >
+              <option value="" disabled>{customersLoading ? 'Loading customers…' : 'Select a customer'}</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.id}>{c.full_name} — {c.email}</option>
+              ))}
+            </select>
+          </div>
+
+          <Input
+            label="Subject"
+            placeholder="e.g. Order never arrived"
+            value={form.subject}
+            onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+            required
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="label">Channel</label>
+              <select
+                value={form.channel}
+                onChange={e => setForm(f => ({ ...f, channel: e.target.value as TicketChannel }))}
+                className="input"
+              >
+                {CHANNEL_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Category</label>
+              <select
+                value={form.category}
+                onChange={e => setForm(f => ({ ...f, category: e.target.value as TicketCategory }))}
+                className="input"
+              >
+                {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Priority</label>
+              <select
+                value={form.priority}
+                onChange={e => setForm(f => ({ ...f, priority: e.target.value as TicketPriority }))}
+                className="input"
+              >
+                {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-400 dark:text-gray-500">New tickets start unassigned — use Reassign Ticket on the ticket's detail page to assign one.</p>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-gray-700">
+            <Button type="button" variant="ghost" onClick={() => setCreateModalOpen(false)} disabled={creating}>Cancel</Button>
+            <Button type="submit" loading={creating} disabled={!form.customerId || !form.subject.trim()}>Create Ticket</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

@@ -262,15 +262,23 @@
   animation: shimmer 1.6s ease-in-out infinite;
 }
 
-/* Pulsing ring behind live/on-duty status dots */
-.status-pulse { position: relative; }
-.status-pulse::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 9999px;
-  background: currentColor;
-  animation: ping-soft 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+/* Pulsing ring behind live/on-duty status dots. Scoped inside @layer so
+   Tailwind's `absolute` utility (emitted in its own, higher-priority
+   utilities layer) can still win when a caller needs status-pulse on an
+   already-absolutely-positioned element (e.g. the Topbar notification
+   badge) - an unlayered `position: relative` here would otherwise beat
+   `absolute` unconditionally regardless of class order, exactly like the
+   bottom-6/bottom-0 conflict fixed earlier in ChatPanel. */
+@layer components {
+  .status-pulse { position: relative; }
+  .status-pulse::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: currentColor;
+    animation: ping-soft 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
