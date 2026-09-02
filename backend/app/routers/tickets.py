@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.crud import customer as customer_crud
 from app.crud import ticket as ticket_crud
 from app.models.agent import SupportAgent
 from app.schemas.ticket import (
@@ -14,6 +15,7 @@ from app.schemas.ticket import (
     TicketResponse,
     TicketUpdate,
 )
+from app.services import audit_service
 from app.services.auth_service import get_current_agent
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -77,9 +79,20 @@ def get_ticket(
 def create_ticket(
     payload: TicketCreate,
     db: Session = Depends(get_db),
-    _agent: SupportAgent = Depends(get_current_agent),
+    agent: SupportAgent = Depends(get_current_agent),
 ):
-    return ticket_crud.create_ticket(db, payload)
+    if not customer_crud.get_customer(db, payload.customer_id):
+        raise HTTPException(status_code=404, detail="Customer not found")
+    ticket = ticket_crud.create_ticket(db, payload)
+    audit_service.record_activity(
+        db,
+        actor=agent.full_name,
+        action_type="create_ticket",
+        entity_type="ticket",
+        entity_id=ticket.id,
+        summary=f"Created ticket {ticket.ticket_number}: {ticket.subject}",
+    )
+    return ticket
 
 
 @router.patch("/{ticket_id}", response_model=TicketResponse)
@@ -87,12 +100,26 @@ def update_ticket(
     ticket_id: str,
     payload: TicketUpdate,
     db: Session = Depends(get_db),
-    _agent: SupportAgent = Depends(get_current_agent),
+    agent: SupportAgent = Depends(get_current_agent),
 ):
     ticket = ticket_crud.get_ticket(db, ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return ticket_crud.update_ticket(db, ticket, payload)
+
+    changes = payload.model_dump(exclude_unset=True)
+    updated = ticket_crud.update_ticket(db, ticket, payload)
+
+    if changes:
+        summary = "; ".join(f"{field} -> {value}" for field, value in changes.items())
+        audit_service.record_activity(
+            db,
+            actor=agent.full_name,
+            action_type="update_ticket",
+            entity_type="ticket",
+            entity_id=updated.id,
+            summary=f"Updated ticket {updated.ticket_number}: {summary}",
+        )
+    return updated
 
 
 @router.post("/{ticket_id}/events", response_model=TicketEventResponse, status_code=201)

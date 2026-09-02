@@ -34,6 +34,10 @@ class Citation(BaseModel):
     version: str
     source_updated_at: str
     section: str | None = None
+    # The actual retrieved passage text (not just title/section) so an
+    # agent can verify the answer against real source content instead of
+    # trusting an opaque "Refund Policy (v2)" chip.
+    snippet: str | None = None
 
 
 class ChatMessage(BaseModel):

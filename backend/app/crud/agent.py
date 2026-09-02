@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password
 from app.models.agent import SupportAgent
 from app.schemas.agent import AgentCreate, AgentUpdate
+from app.services.agent_status import is_on_duty
 
 
 def get_agent(db: Session, agent_id: str) -> SupportAgent | None:
@@ -19,9 +20,12 @@ def list_agents(
     q = db.query(SupportAgent)
     if team:
         q = q.filter(SupportAgent.team == team)
+    agents = q.order_by(SupportAgent.full_name).all()
     if on_duty is not None:
-        q = q.filter(SupportAgent.on_duty == on_duty)
-    return q.order_by(SupportAgent.full_name).all()
+        # on_duty is derived from shift hours (see app.services.agent_status),
+        # not a queryable column - filter in Python after loading.
+        agents = [a for a in agents if is_on_duty(a.shift_start, a.shift_end) == on_duty]
+    return agents
 
 
 def create_agent(db: Session, data: AgentCreate) -> SupportAgent:

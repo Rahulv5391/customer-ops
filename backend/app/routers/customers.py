@@ -12,6 +12,7 @@ from app.schemas.customer import (
     CustomerUpdate,
 )
 from app.schemas.note import NoteCreate, NoteResponse
+from app.services import audit_service
 from app.services.auth_service import get_current_agent
 
 router = APIRouter(prefix="/customers", tags=["customers"])
@@ -55,12 +56,24 @@ def update_customer(
     customer_id: str,
     payload: CustomerUpdate,
     db: Session = Depends(get_db),
-    _agent: SupportAgent = Depends(get_current_agent),
+    agent: SupportAgent = Depends(get_current_agent),
 ):
     customer = customer_crud.get_customer(db, customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-    return customer_crud.update_customer(db, customer, payload.model_dump(exclude_unset=True))
+    changes = payload.model_dump(exclude_unset=True)
+    updated = customer_crud.update_customer(db, customer, changes)
+    if changes:
+        summary = "; ".join(f"{field} -> {value}" for field, value in changes.items())
+        audit_service.record_activity(
+            db,
+            actor=agent.full_name,
+            action_type="update_customer",
+            entity_type="customer",
+            entity_id=updated.id,
+            summary=f"Updated {updated.full_name}'s profile: {summary}",
+        )
+    return updated
 
 
 @router.post("/{customer_id}/notes", response_model=NoteResponse, status_code=201)

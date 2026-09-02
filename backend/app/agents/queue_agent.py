@@ -14,7 +14,8 @@ from app.models.ticket import Ticket
 from app.prompts.loader import load_prompt
 from app.schemas.chat import ActionDiff, ChatMessage, PendingAction
 from app.services.action_token import create_action_token
-from app.services.entity_resolution import resolve_entity
+from app.services.agent_status import is_on_duty
+from app.services.entity_resolution import AmbiguousEntityError, resolve_entity
 
 logger = get_logger("queue_agent")
 
@@ -102,7 +103,15 @@ class QueueAgent:
                 type="text", content="Which agent should I reassign this to?", status="final"
             )
 
-        target_agent = resolve_entity(list_agents(db), parsed.target_agent_id, raw_message)
+        try:
+            target_agent = resolve_entity(list_agents(db), parsed.target_agent_id, raw_message)
+        except AmbiguousEntityError as exc:
+            names = ", ".join(f"{a.full_name} ({a.team})" for a in exc.matches[:5])
+            return ChatMessage(
+                type="text",
+                content=f"More than one agent matches that: {names}. Try their email instead.",
+                status="final",
+            )
         if not target_agent:
             return ChatMessage(
                 type="text",
@@ -181,7 +190,7 @@ class QueueAgent:
         self, db: Session, channel: str | None, category: str | None, include_details: bool = False
     ) -> ChatMessage:
         agents: list[SupportAgent] = list_agents(db)
-        agents_online = sum(1 for a in agents if a.on_duty)
+        agents_online = sum(1 for a in agents if is_on_duty(a.shift_start, a.shift_end))
 
         unassigned: list[Ticket] = list_tickets(db, status="unassigned")
 

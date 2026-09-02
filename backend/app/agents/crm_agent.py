@@ -12,7 +12,7 @@ from app.prompts.loader import load_prompt
 from app.schemas.chat import ActionDiff, ChatMessage, PendingAction
 from app.services.action_token import create_action_token
 from app.services.crm_mutations import CUSTOMER_FIELD_LABELS, normalize_customer_field
-from app.services.entity_resolution import resolve_entity
+from app.services.entity_resolution import AmbiguousEntityError, resolve_entity
 
 logger = get_logger("crm_agent")
 
@@ -59,9 +59,28 @@ class CRMAgent:
             db, active_entity_id, parsed.target_hint, message, parsed.field_name, parsed.field_value
         )
 
+    def _resolve_customer(
+        self, candidates: list, target_hint: str | None, raw_message: str
+    ) -> tuple[object | None, ChatMessage | None]:
+        """Wraps resolve_entity, turning an ambiguous match into a
+        clarifying ChatMessage instead of letting it propagate as an error.
+        Returns (customer, None) on a clean result, or (None, message) when
+        the caller should return `message` as-is."""
+        try:
+            return resolve_entity(candidates, target_hint, raw_message), None
+        except AmbiguousEntityError as exc:
+            names = ", ".join(f"{c.full_name} ({c.email})" for c in exc.matches[:5])
+            return None, ChatMessage(
+                type="text",
+                content=f"More than one customer matches that: {names}. Try their email or customer id instead.",
+                status="final",
+            )
+
     def handle_lookup(self, db: Session, target_hint: str | None, raw_message: str) -> ChatMessage:
         candidates = list_customers(db, limit=1000)
-        customer = resolve_entity(candidates, target_hint, raw_message)
+        customer, ambiguous = self._resolve_customer(candidates, target_hint, raw_message)
+        if ambiguous:
+            return ambiguous
         if not customer:
             return _NOT_FOUND
 
@@ -78,7 +97,9 @@ class CRMAgent:
         customer_id = active_entity_id
         if not customer_id:
             candidates = list_customers(db, limit=1000)
-            resolved = resolve_entity(candidates, target_hint, raw_message)
+            resolved, ambiguous = self._resolve_customer(candidates, target_hint, raw_message)
+            if ambiguous:
+                return ambiguous
             customer_id = resolved.id if resolved else None
 
         if not customer_id:
@@ -120,7 +141,9 @@ class CRMAgent:
         customer = get_customer(db, active_entity_id) if active_entity_id else None
         if not customer:
             candidates = list_customers(db, limit=1000)
-            customer = resolve_entity(candidates, target_hint, raw_message)
+            customer, ambiguous = self._resolve_customer(candidates, target_hint, raw_message)
+            if ambiguous:
+                return ambiguous
         if not customer:
             return _NOT_FOUND
 

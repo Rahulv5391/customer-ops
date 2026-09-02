@@ -4,7 +4,9 @@ None."""
 
 from types import SimpleNamespace
 
-from app.services.entity_resolution import resolve_entity
+import pytest
+
+from app.services.entity_resolution import AmbiguousEntityError, resolve_entity
 
 
 def _entity(id="e1", full_name="Daniel Brooks", email="daniel@example.com"):
@@ -68,3 +70,29 @@ def test_empty_candidates_returns_none():
 def test_none_target_hint_and_raw_query_handled_gracefully():
     candidates = [_entity()]
     assert resolve_entity(candidates, None, "") is None
+
+
+def test_duplicate_full_name_raises_ambiguous_instead_of_picking_first():
+    # Two different customers named "Carla Jensen" - silently picking
+    # whichever comes first in the list would risk updating the wrong
+    # person's record. This must be surfaced as ambiguous, not guessed.
+    carla_1 = _entity(id="c1", full_name="Carla Jensen", email="carla.jensen@yahoo.com")
+    carla_2 = _entity(id="c2", full_name="Carla Jensen", email="carla.jensen@work.com")
+    with pytest.raises(AmbiguousEntityError) as exc_info:
+        resolve_entity([carla_1, carla_2], "carla jensen", "ignored")
+    assert {m.id for m in exc_info.value.matches} == {"c1", "c2"}
+
+
+def test_duplicate_token_subset_match_also_raises_ambiguous():
+    carla_1 = _entity(id="c1", full_name="Carla Jensen")
+    carla_2 = _entity(id="c2", full_name="Carla Smith")
+    with pytest.raises(AmbiguousEntityError):
+        resolve_entity([carla_1, carla_2], None, "update carla jensen smith account")
+
+
+def test_unambiguous_id_match_wins_even_with_duplicate_names():
+    carla_1 = _entity(id="c1", full_name="Carla Jensen")
+    carla_2 = _entity(id="c2", full_name="Carla Jensen")
+    # An exact id match is unambiguous on its own, even though the name
+    # tier below it would have been ambiguous.
+    assert resolve_entity([carla_1, carla_2], "c1", "ignored") is carla_1

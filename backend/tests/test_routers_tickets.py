@@ -68,3 +68,43 @@ def test_board_shows_every_ticket_to_team_lead(client, db, lead_headers, support
     ids = {t["id"] for t in _flatten(r.json())}
 
     assert {mine.id, unassigned.id, someone_elses.id}.issubset(ids)
+
+
+def test_create_ticket_rejects_nonexistent_customer_id(client, agent_headers):
+    r = client.post(
+        "/api/v1/tickets",
+        headers=agent_headers,
+        json={"customer_id": "does-not-exist", "subject": "Ghost ticket"},
+    )
+    assert r.status_code == 404
+
+
+def test_create_ticket_succeeds_for_a_real_customer_and_is_audited(client, db, agent_headers):
+    customer = _make_customer(db)
+    r = client.post(
+        "/api/v1/tickets",
+        headers=agent_headers,
+        json={"customer_id": customer.id, "subject": "Package arrived damaged"},
+    )
+    assert r.status_code == 201
+    ticket_id = r.json()["id"]
+
+    from app.crud.audit_log import list_activity
+
+    entries = list_activity(db, entity_type="ticket", entity_id=ticket_id)
+    assert any(e.action_type == "create_ticket" for e in entries)
+
+
+def test_update_ticket_writes_an_activity_log_entry(client, db, agent_headers):
+    customer = _make_customer(db)
+    ticket = _make_ticket(db, customer.id)
+
+    r = client.patch(
+        f"/api/v1/tickets/{ticket.id}", headers=agent_headers, json={"status": "in_progress"}
+    )
+    assert r.status_code == 200
+
+    from app.crud.audit_log import list_activity
+
+    entries = list_activity(db, entity_type="ticket", entity_id=ticket.id)
+    assert any(e.action_type == "update_ticket" and "status" in e.summary for e in entries)

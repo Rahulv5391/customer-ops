@@ -69,26 +69,31 @@ export function ActivityLog() {
         </select>
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 animate-fade-in-up" style={{ animationDelay: '80ms' }}>
+      <div className="flex-1 overflow-auto scrollbar-thin bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 animate-fade-in-up" style={{ animationDelay: '80ms' }}>
         {logs.length === 0 ? (
           <EmptyState icon={ScrollText} title="No Activity" description="No system activity has been recorded yet." />
         ) : (
-          <div className="min-w-max">
-            <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/50 sticky top-0 z-10 text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
-              <div className="col-span-2 pl-2">Timestamp</div>
-              <div className="col-span-3">Actor</div>
-              <div className="col-span-2">Action</div>
-              <div className="col-span-4">Summary</div>
-              <div className="col-span-1 text-right pr-2">Entity</div>
+          <div className="min-w-[900px]">
+            {/* Explicit per-column widths (not grid-cols-12 fractions) - a
+                12-track grid with no intrinsic sizing just stretches every
+                column to an equal share of the full panel width, leaving
+                huge gaps around short content like a timestamp or a name.
+                Only Summary should actually grow, so it's the lone `1fr`. */}
+            <div className="grid grid-cols-[165px_170px_190px_1fr_110px] gap-4 p-4 items-center border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/50 sticky top-0 z-10 text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
+              <div className="pl-2">Timestamp</div>
+              <div>Actor</div>
+              <div>Action</div>
+              <div>Summary</div>
+              <div className="text-right pr-2">Entity</div>
             </div>
-            
+
             <div className="divide-y divide-slate-100 dark:divide-gray-700/50">
               {logs.map(log => (
-                <div key={log.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-slate-50 dark:hover:bg-gray-700/30 transition-colors group">
-                  <div className="col-span-2 pl-2 font-data text-xs text-slate-500 dark:text-gray-400">
+                <div key={log.id} className="grid grid-cols-[165px_170px_190px_1fr_110px] gap-4 p-4 items-start hover:bg-slate-50 dark:hover:bg-gray-700/30 transition-colors group">
+                  <div className="pl-2 font-data text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
                     {new Date(log.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </div>
-                  <div className="col-span-3 flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     {log.actor.toLowerCase().includes('system') || log.actor === 'AI Assistant' ? (
                       <div className="w-6 h-6 bg-slate-100 dark:bg-gray-700 rounded-full flex items-center justify-center shrink-0">
                         <span className="text-[10px] font-bold text-slate-500 dark:text-gray-400">SYS</span>
@@ -98,17 +103,17 @@ export function ActivityLog() {
                     )}
                     <span className="text-sm font-medium text-slate-900 dark:text-slate-200 truncate">{log.actor}</span>
                   </div>
-                  <div className="col-span-2">
-                    <span className="text-xs font-semibold px-2 py-1 bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300 rounded uppercase tracking-wider">
+                  <div>
+                    <span className="text-xs font-semibold px-2 py-1 bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300 rounded uppercase tracking-wider whitespace-nowrap">
                       {log.action_type.replace(/_/g, ' ')}
                     </span>
                   </div>
-                  <div className="col-span-4 text-sm text-slate-700 dark:text-slate-300 truncate" title={log.summary}>
+                  <div className="min-w-0 text-sm text-slate-700 dark:text-slate-300 break-words">
                     {log.summary}
                   </div>
-                  <div className="col-span-1 flex justify-end pr-2">
+                  <div className="min-w-0 flex justify-end pr-2">
                     {['ticket', 'customer'].includes(log.entity_type) ? (
-                      <button 
+                      <button
                         onClick={() => navigateToEntity(log.entity_type, log.entity_id)}
                         className="p-1.5 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/30 rounded transition opacity-0 group-hover:opacity-100 focus:opacity-100"
                         title={`View ${log.entity_type}`}
@@ -116,7 +121,7 @@ export function ActivityLog() {
                         <LinkIcon size={16} />
                       </button>
                     ) : (
-                      <span className="text-xs text-slate-400 dark:text-gray-500 capitalize">{log.entity_type}</span>
+                      <span className="text-xs text-slate-400 dark:text-gray-500 capitalize truncate">{log.entity_type.replace(/_/g, ' ')}</span>
                     )}
                   </div>
                 </div>

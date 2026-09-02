@@ -9,8 +9,8 @@ from app.crud import kb_document as kb_crud
 from app.models.agent import SupportAgent
 from app.models.kb_document import KBDocument
 from app.schemas.kb_document import KBDocumentResponse, KBDocumentUpdate
-from app.services import rag_service
-from app.services.auth_service import get_current_agent
+from app.services import audit_service, rag_service
+from app.services.auth_service import get_current_agent, require_team_lead
 from app.services.document_extraction import compute_content_hash, extract_pdf_sections
 
 router = APIRouter(prefix="/kb", tags=["kb"])
@@ -104,7 +104,7 @@ def upload_document(
     source_updated_at: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _agent: SupportAgent = Depends(get_current_agent),
+    agent: SupportAgent = Depends(get_current_agent),
 ):
     """Creates a KB document from an uploaded PDF. Duplicate detection is
     based on content hash, not filename."""
@@ -115,7 +115,7 @@ def upload_document(
     if not sections:
         raise HTTPException(status_code=400, detail="No extractable text found in this PDF")
 
-    return _create_and_ingest(
+    document = _create_and_ingest(
         db,
         title=title,
         category=category,
@@ -124,6 +124,15 @@ def upload_document(
         sections=sections,
         source_filename=file.filename,
     )
+    audit_service.record_activity(
+        db,
+        actor=agent.full_name,
+        action_type="upload_kb_document",
+        entity_type="kb_document",
+        entity_id=document.id,
+        summary=f"Uploaded knowledge document '{document.title}' ({document.version})",
+    )
+    return document
 
 
 @router.patch("/{document_id}", response_model=KBDocumentResponse)
@@ -131,13 +140,22 @@ def update_document(
     document_id: str,
     payload: KBDocumentUpdate,
     db: Session = Depends(get_db),
-    _agent: SupportAgent = Depends(get_current_agent),
+    agent: SupportAgent = Depends(get_current_agent),
 ):
     document = kb_crud.get_document(db, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     # Metadata only - content changes go through PATCH /kb/{id}/upload.
-    return kb_crud.update_document(db, document, payload)
+    updated = kb_crud.update_document(db, document, payload)
+    audit_service.record_activity(
+        db,
+        actor=agent.full_name,
+        action_type="update_kb_document",
+        entity_type="kb_document",
+        entity_id=updated.id,
+        summary=f"Updated metadata on knowledge document '{updated.title}'",
+    )
+    return updated
 
 
 @router.patch("/{document_id}/upload", response_model=KBDocumentResponse)
@@ -147,7 +165,7 @@ def upload_document_update(
     source_updated_at: str | None = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _agent: SupportAgent = Depends(get_current_agent),
+    agent: SupportAgent = Depends(get_current_agent),
 ):
     """Re-ingests a new PDF into an existing document id."""
     document = kb_crud.get_document(db, document_id)
@@ -194,6 +212,14 @@ def upload_document_update(
         )
     db.commit()
     db.refresh(document)
+    audit_service.record_activity(
+        db,
+        actor=agent.full_name,
+        action_type="update_kb_document",
+        entity_type="kb_document",
+        entity_id=document.id,
+        summary=f"Uploaded new content for knowledge document '{document.title}' ({document.version})",
+    )
     return document
 
 
@@ -201,12 +227,20 @@ def upload_document_update(
 def delete_document(
     document_id: str,
     db: Session = Depends(get_db),
-    _agent: SupportAgent = Depends(get_current_agent),
+    lead: SupportAgent = Depends(require_team_lead),
 ):
     document = kb_crud.get_document(db, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     rag_service.remove_document(document_id)
+    audit_service.record_activity(
+        db,
+        actor=lead.full_name,
+        action_type="delete_kb_document",
+        entity_type="kb_document",
+        entity_id=document.id,
+        summary=f"Deleted knowledge document '{document.title}'",
+    )
     kb_crud.delete_document(db, document)
 
 

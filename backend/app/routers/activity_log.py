@@ -16,7 +16,10 @@ def list_activity(
     entity_type: str | None = None,
     entity_id: str | None = None,
     limit: int = 100,
+    offset: int = 0,
     db: Session = Depends(get_db),
     _lead: SupportAgent = Depends(require_team_lead),
 ):
-    return audit_log_crud.list_activity(db, entity_type=entity_type, entity_id=entity_id, limit=limit)
+    return audit_log_crud.list_activity(
+        db, entity_type=entity_type, entity_id=entity_id, limit=limit, offset=offset
+    )

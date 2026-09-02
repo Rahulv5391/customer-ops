@@ -5,7 +5,8 @@ export interface Citation {
   document_title: string;
   version: string;
   source_updated_at: string;
-  section: string;
+  section: string | null;
+  snippet: string | null;
 }
 
 export interface PendingAction {

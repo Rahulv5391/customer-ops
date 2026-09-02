@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
+
+from app.services.agent_status import is_on_duty
 
 
 class AgentBase(BaseModel):
@@ -11,7 +13,6 @@ class AgentBase(BaseModel):
     team: str = "general"
     shift_start: str = "09:00"
     shift_end: str = "17:00"
-    on_duty: bool = True
     extension: str | None = None
 
 
@@ -26,7 +27,6 @@ class AgentUpdate(BaseModel):
     team: str | None = None
     shift_start: str | None = None
     shift_end: str | None = None
-    on_duty: bool | None = None
     extension: str | None = None
     active: bool | None = None
     two_factor: bool | None = None
@@ -39,3 +39,12 @@ class AgentResponse(AgentBase):
     active: bool
     two_factor: bool
     created_at: datetime
+    # Always recomputed from shift_start/shift_end below - never trusts
+    # whatever the stored `on_duty` column happens to hold, which could
+    # drift arbitrarily out of sync with the actual shift schedule.
+    on_duty: bool = True
+
+    @model_validator(mode="after")
+    def _derive_on_duty(self) -> "AgentResponse":
+        self.on_duty = is_on_duty(self.shift_start, self.shift_end)
+        return self

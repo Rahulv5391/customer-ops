@@ -6,7 +6,7 @@ from app.crud import escalation as escalation_crud
 from app.models.agent import SupportAgent
 from app.schemas.escalation import EscalationResolve, EscalationResponse
 from app.services import audit_service
-from app.services.auth_service import get_current_agent, require_team_lead
+from app.services.auth_service import require_team_lead
 
 router = APIRouter(prefix="/escalations", tags=["escalations"])
 
@@ -18,7 +18,7 @@ def list_escalations(
     escalation_type: str | None = None,
     ticket_id: str | None = None,
     db: Session = Depends(get_db),
-    _agent: SupportAgent = Depends(get_current_agent),
+    _lead: SupportAgent = Depends(require_team_lead),
 ):
     return escalation_crud.list_escalations(
         db,
@@ -33,7 +33,7 @@ def list_escalations(
 def get_escalation(
     escalation_id: str,
     db: Session = Depends(get_db),
-    _agent: SupportAgent = Depends(get_current_agent),
+    _lead: SupportAgent = Depends(require_team_lead),
 ):
     escalation = escalation_crud.get_escalation(db, escalation_id)
     if not escalation:

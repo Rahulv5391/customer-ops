@@ -86,9 +86,21 @@ class RAGAgent:
                     version=hit["version"],
                     source_updated_at=hit["source_updated_at"],
                     section=hit["section"],
+                    snippet=self._extract_snippet(hit["text"]),
                 )
             )
         return citations
+
+    def _extract_snippet(self, indexed_text: str, max_chars: int = 480) -> str:
+        """rag_service embeds each chunk as "{title} - {section}\\n{body}"
+        (see ingest_document) - strip that prefix so the citation shows the
+        actual source passage, not a repeat of the title/section already
+        shown above it. Truncated to a readable preview length."""
+        body = indexed_text.split("\n", 1)[1] if "\n" in indexed_text else indexed_text
+        body = body.strip()
+        if len(body) > max_chars:
+            body = body[:max_chars].rsplit(" ", 1)[0] + "…"
+        return body
 
 
 rag_agent = RAGAgent()
