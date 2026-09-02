@@ -3,6 +3,8 @@ analytics aggregation has an exact expected value."""
 
 from datetime import datetime, timedelta, timezone
 
+from app.core.security import hash_password
+from app.models.agent import SupportAgent
 from app.models.customer import Customer
 from app.models.escalation import Escalation
 from app.models.ticket import Ticket, TicketEvent
@@ -93,10 +95,13 @@ def _seed_dataset(db):
     return tickets
 
 
-def test_summary_matches_hand_computed_expected_values(client, agent_headers, db):
+def test_summary_matches_hand_computed_expected_values(client, lead_headers, db):
+    # Team lead - org-wide, unscoped view. None of these tickets are
+    # assigned to an agent, so a support_agent would see all-null/empty
+    # results here instead (covered by the scoping tests below).
     _seed_dataset(db)
 
-    r = client.get("/api/v1/analytics/summary", headers=agent_headers)
+    r = client.get("/api/v1/analytics/summary", headers=lead_headers)
     assert r.status_code == 200
     body = r.json()
 
@@ -117,18 +122,18 @@ def test_summary_matches_hand_computed_expected_values(client, agent_headers, db
     assert body["deflection_rate"] == 0.5
 
 
-def test_ticket_volume_endpoint_zero_fills_empty_days(client, agent_headers, db):
+def test_ticket_volume_endpoint_zero_fills_empty_days(client, lead_headers, db):
     _seed_dataset(db)
-    r = client.get("/api/v1/analytics/ticket-volume?days=7", headers=agent_headers)
+    r = client.get("/api/v1/analytics/ticket-volume?days=7", headers=lead_headers)
     assert r.status_code == 200
     points = r.json()
     assert len(points) == 7
     assert any(p["count"] == 0 for p in points)  # at least one quiet day in a fresh 7-day window
 
 
-def test_top_issue_categories_ordered_by_count_desc(client, agent_headers, db):
+def test_top_issue_categories_ordered_by_count_desc(client, lead_headers, db):
     _seed_dataset(db)
-    r = client.get("/api/v1/analytics/top-issue-categories?limit=5", headers=agent_headers)
+    r = client.get("/api/v1/analytics/top-issue-categories?limit=5", headers=lead_headers)
     assert r.status_code == 200
     rows = r.json()
     assert rows[0] == {"category": "billing", "count": 2}
@@ -142,9 +147,9 @@ def test_escalations_pending_counts_only_pending_status(client, agent_headers, d
     assert r.json()["count"] == 1  # the approved one must not be counted
 
 
-def test_tickets_resolved_today_excludes_older_resolutions(client, agent_headers, db):
+def test_tickets_resolved_today_excludes_older_resolutions(client, lead_headers, db):
     _seed_dataset(db)
-    r = client.get("/api/v1/analytics/tickets-resolved-today", headers=agent_headers)
+    r = client.get("/api/v1/analytics/tickets-resolved-today", headers=lead_headers)
     assert r.status_code == 200
     assert r.json()["count"] == 2  # not the one resolved 3 days ago
 
@@ -161,3 +166,81 @@ def test_analytics_endpoints_handle_empty_database(client, agent_headers):
 
 def test_analytics_requires_auth(client):
     assert client.get("/api/v1/analytics/summary").status_code == 401
+
+
+def _other_agent(db):
+    other = SupportAgent(
+        full_name="Other Agent",
+        email="other.agent@example.com",
+        password_hash=hash_password("password123"),
+        role="support_agent",
+    )
+    db.add(other)
+    db.commit()
+    db.refresh(other)
+    return other
+
+
+def _seed_scoped_dataset(db, mine_agent_id, other_agent_id):
+    """Two resolved-today tickets: one assigned to `mine_agent_id`, one to
+    `other_agent_id`. Used to prove a support_agent's dashboard only ever
+    reflects their own assigned tickets, never a colleague's."""
+    customer = Customer(full_name="Grace Hopper", email="grace@example.com")
+    db.add(customer)
+    db.commit()
+
+    now = _now()
+    mine = Ticket(
+        customer_id=customer.id,
+        subject="My ticket",
+        status="resolved",
+        category="billing",
+        csat_score=5.0,
+        assigned_agent_id=mine_agent_id,
+        created_at=now - timedelta(hours=2),
+        resolved_at=now,
+    )
+    someone_elses = Ticket(
+        customer_id=customer.id,
+        subject="Their ticket",
+        status="resolved",
+        category="technical",
+        csat_score=1.0,
+        assigned_agent_id=other_agent_id,
+        created_at=now - timedelta(hours=10),
+        resolved_at=now,
+    )
+    db.add_all([mine, someone_elses])
+    db.commit()
+    return mine, someone_elses
+
+
+def test_support_agent_dashboard_only_reflects_their_own_tickets(client, db, agent_headers, support_agent):
+    other = _other_agent(db)
+    _seed_scoped_dataset(db, mine_agent_id=support_agent.id, other_agent_id=other.id)
+
+    r = client.get("/api/v1/analytics/summary", headers=agent_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["csat_average"] == 5.0  # only "mine" (5.0), not the colleague's 1.0
+    assert sum(p["count"] for p in body["ticket_volume_7d"]) == 1  # only 1 of the 2 tickets
+
+    resolved_today = client.get("/api/v1/analytics/tickets-resolved-today", headers=agent_headers)
+    assert resolved_today.json()["count"] == 1  # not 2
+
+    categories = client.get("/api/v1/analytics/top-issue-categories", headers=agent_headers)
+    assert categories.json() == [{"category": "billing", "count": 1}]  # not "technical"
+
+
+def test_team_lead_dashboard_sees_every_agents_tickets(client, db, lead_headers, support_agent):
+    other = _other_agent(db)
+    _seed_scoped_dataset(db, mine_agent_id=support_agent.id, other_agent_id=other.id)
+
+    r = client.get("/api/v1/analytics/summary", headers=lead_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["csat_average"] == 3.0  # avg of 5.0 and 1.0 - both agents' tickets
+    assert sum(p["count"] for p in body["ticket_volume_7d"]) == 2
+
+    resolved_today = client.get("/api/v1/analytics/tickets-resolved-today", headers=lead_headers)
+    assert resolved_today.json()["count"] == 2

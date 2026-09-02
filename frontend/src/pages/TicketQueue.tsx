@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ticketsApi } from '../api/tickets';
 import { customersApi } from '../api/customers';
-import type { TicketBoardRow, TicketStatus, TicketChannel, TicketCategory, TicketPriority, CustomerResponse } from '../types';
+import { agentsApi } from '../api/agents';
+import type { TicketBoardRow, TicketStatus, TicketChannel, TicketCategory, TicketPriority, CustomerResponse, AgentResponse } from '../types';
 import { Spinner, Avatar, Badge, Button, Modal, Input } from '../components/ui';
 import { Inbox, MessageSquare, Phone, Globe, AlertCircle, Plus } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
@@ -36,6 +37,7 @@ const emptyForm = {
 
 export function TicketQueue() {
   const [board, setBoard] = useState<TicketBoardRow[]>([]);
+  const [agentsById, setAgentsById] = useState<Record<string, AgentResponse>>({});
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -53,6 +55,12 @@ export function TicketQueue() {
 
   useEffect(() => {
     fetchBoard();
+    // The board only carries assigned_agent_id - fetch the directory once
+    // so each ticket card can show the real assigned agent's initials
+    // instead of a generic placeholder.
+    agentsApi.list()
+      .then(agents => setAgentsById(Object.fromEntries(agents.map(a => [a.id, a]))))
+      .catch(console.error);
   }, []);
 
   const openCreateModal = () => {
@@ -123,23 +131,32 @@ export function TicketQueue() {
                         <Badge variant="neutral">{col.tickets.length}</Badge>
                       </div>
                       <div className="flex flex-col gap-3 stagger">
-                        {col.tickets.map(t => (
-                          <div
-                            key={t.id}
-                            onClick={() => navigate(`/tickets/${t.id}`)}
-                            className="card-interactive bg-white dark:bg-gray-800 p-4 group"
-                          >
-                            <div className="flex justify-between items-start mb-2 gap-2">
-                              <span className="font-data text-xs font-medium text-slate-500 dark:text-gray-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">#{t.ticket_number}</span>
-                              {t.priority === 'urgent' && <AlertCircle size={14} className="text-red-500 shrink-0" />}
+                        {col.tickets.map(t => {
+                          const assignedAgent = t.assigned_agent_id ? agentsById[t.assigned_agent_id] : null;
+                          return (
+                            <div
+                              key={t.id}
+                              onClick={() => navigate(`/tickets/${t.id}`)}
+                              className="card-interactive bg-white dark:bg-gray-800 p-4 group"
+                            >
+                              <div className="flex justify-between items-start mb-2 gap-2">
+                                <span className="font-data text-xs font-medium text-slate-500 dark:text-gray-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">#{t.ticket_number}</span>
+                                {t.priority === 'urgent' && <AlertCircle size={14} className="text-red-500 shrink-0" />}
+                              </div>
+                              <div className="font-medium text-sm text-slate-900 dark:text-white mb-4 line-clamp-2">{t.subject}</div>
+                              <div className="flex items-center justify-between mt-auto">
+                                <Badge variant={t.priority === 'high' || t.priority === 'urgent' ? 'danger' : t.priority === 'medium' ? 'warning' : 'neutral'}>{t.priority}</Badge>
+                                {t.assigned_agent_id ? (
+                                  <div title={assignedAgent?.full_name ?? 'Assigned'}>
+                                    <Avatar name={assignedAgent?.full_name ?? '?'} size="sm" className="w-6 h-6 text-[10px]" />
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400 dark:text-slate-500 text-[10px] font-semibold uppercase tracking-wide">Unassigned</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="font-medium text-sm text-slate-900 dark:text-white mb-4 line-clamp-2">{t.subject}</div>
-                            <div className="flex items-center justify-between mt-auto">
-                              <Badge variant={t.priority === 'high' || t.priority === 'urgent' ? 'danger' : t.priority === 'medium' ? 'warning' : 'neutral'}>{t.priority}</Badge>
-                              {t.assigned_agent_id ? <Avatar name="Agent" size="sm" className="w-6 h-6 text-[10px]" /> : <span className="text-slate-400 dark:text-slate-500 text-[10px] font-semibold uppercase tracking-wide">Unassigned</span>}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {col.tickets.length === 0 && (
                           <div className="text-center p-6 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-400 dark:text-slate-500 text-sm font-medium">
                             No tickets

@@ -108,3 +108,26 @@ def test_update_ticket_writes_an_activity_log_entry(client, db, agent_headers):
 
     entries = list_activity(db, entity_type="ticket", entity_id=ticket.id)
     assert any(e.action_type == "update_ticket" and "status" in e.summary for e in entries)
+
+
+def test_resolving_a_ticket_through_the_api_shows_up_in_todays_analytics(
+    client, db, agent_headers, support_agent
+):
+    """End-to-end regression for the bug report: resolving a ticket via
+    PATCH /tickets/{id} (the same call the Update Status modal makes) must
+    be reflected by GET /analytics/tickets-resolved-today the same day -
+    it wasn't, because nothing stamped Ticket.resolved_at outside the demo
+    seed script. Assigned to the requesting agent since analytics is
+    scoped to an agent's own tickets."""
+    customer = _make_customer(db)
+    ticket = _make_ticket(db, customer.id, assigned_agent_id=support_agent.id)
+
+    before = client.get("/api/v1/analytics/tickets-resolved-today", headers=agent_headers)
+    assert before.json()["count"] == 0
+
+    r = client.patch(f"/api/v1/tickets/{ticket.id}", headers=agent_headers, json={"status": "resolved"})
+    assert r.status_code == 200
+    assert r.json()["resolved_at"] is not None
+
+    after = client.get("/api/v1/analytics/tickets-resolved-today", headers=agent_headers)
+    assert after.json()["count"] == 1

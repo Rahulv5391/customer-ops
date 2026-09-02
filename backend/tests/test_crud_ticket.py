@@ -70,6 +70,59 @@ def test_update_ticket_only_changes_provided_fields(db):
     assert updated.subject == "Order never arrived"  # untouched
 
 
+def test_update_ticket_to_resolved_stamps_resolved_at(db):
+    customer = _make_customer(db)
+    ticket = _make_ticket(db, customer.id)
+    assert ticket.resolved_at is None
+
+    updated = ticket_crud.update_ticket(db, ticket, TicketUpdate(status="resolved"))
+    assert updated.resolved_at is not None
+
+
+def test_update_ticket_to_closed_also_stamps_resolved_at(db):
+    customer = _make_customer(db)
+    ticket = _make_ticket(db, customer.id)
+    updated = ticket_crud.update_ticket(db, ticket, TicketUpdate(status="closed"))
+    assert updated.resolved_at is not None
+
+
+def test_re_saving_the_same_resolved_status_does_not_bump_resolved_at(db):
+    customer = _make_customer(db)
+    ticket = _make_ticket(db, customer.id)
+    first = ticket_crud.update_ticket(db, ticket, TicketUpdate(status="resolved"))
+    first_resolved_at = first.resolved_at
+
+    # e.g. a second PATCH that also happens to include status=resolved
+    # (unchanged) alongside another field - shouldn't reset the clock.
+    again = ticket_crud.update_ticket(db, first, TicketUpdate(status="resolved", priority="high"))
+    assert again.resolved_at == first_resolved_at
+
+
+def test_reopening_a_resolved_ticket_clears_resolved_at(db):
+    customer = _make_customer(db)
+    ticket = _make_ticket(db, customer.id)
+    resolved = ticket_crud.update_ticket(db, ticket, TicketUpdate(status="resolved"))
+    assert resolved.resolved_at is not None
+
+    reopened = ticket_crud.update_ticket(db, resolved, TicketUpdate(status="in_progress"))
+    assert reopened.resolved_at is None
+
+
+def test_update_ticket_without_a_status_change_leaves_resolved_at_untouched(db):
+    customer = _make_customer(db)
+    ticket = _make_ticket(db, customer.id)
+    resolved = ticket_crud.update_ticket(db, ticket, TicketUpdate(status="resolved"))
+
+    reassigned = ticket_crud.update_ticket(db, resolved, TicketUpdate(priority="urgent"))
+    assert reassigned.resolved_at == resolved.resolved_at
+
+
+def test_create_ticket_pre_resolved_stamps_resolved_at_immediately(db):
+    customer = _make_customer(db)
+    ticket = _make_ticket(db, customer.id, status="resolved")
+    assert ticket.resolved_at is not None
+
+
 def test_add_ticket_event_sets_actor_and_persists(db):
     customer = _make_customer(db)
     ticket = _make_ticket(db, customer.id)
