@@ -24,14 +24,18 @@ export function Modal({ open, title, onClose, children, size = 'md' }: ModalProp
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/50 dark:bg-black/60 animate-fade-in" onClick={onClose} />
-      <div className={`relative w-full ${sizeMap[size]} bg-white dark:bg-gray-800 rounded-2xl animate-scale-in`} style={{ boxShadow: 'var(--shadow-pop)' }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-gray-700">
+      {/* max-h + flex column caps the dialog to the viewport and lets only
+          the body scroll - without this, a form with enough fields (e.g.
+          Edit Profile's address block) has no bound and runs off the top/
+          bottom of the screen instead of scrolling inside the dialog. */}
+      <div className={`relative w-full ${sizeMap[size]} max-h-[85vh] flex flex-col bg-white dark:bg-gray-800 rounded-2xl animate-scale-in`} style={{ boxShadow: 'var(--shadow-pop)' }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-gray-700 shrink-0">
           <h2 className="font-display text-base font-semibold text-slate-900 dark:text-gray-100">{title}</h2>
           <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-gray-700 transition">
             <X size={18} />
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+        <div className="px-6 py-5 overflow-y-auto scrollbar-thin">{children}</div>
       </div>
     </div>
   );

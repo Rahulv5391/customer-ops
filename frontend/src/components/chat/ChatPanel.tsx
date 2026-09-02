@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { chatApi } from '../../api/chat';
 import type { ChatMessage as APIChatMessage } from '../../types';
-import { Send, Bot, Check, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
+import { Send, Bot, Check, ChevronDown, Maximize2, Minimize2, FileText } from 'lucide-react';
 import { Button } from '../ui';
 import { useToast } from '../../hooks/useToast';
 import { MarkdownLite } from './MarkdownLite';
@@ -31,6 +31,17 @@ export function ChatPanel() {
   // a fallback so "her"/"this customer" still resolves when the agent isn't
   // sitting on that record's own detail page - see getActiveContext below.
   const [lastResolvedEntity, setLastResolvedEntity] = useState<{ id: string | null; type: string | null }>({ id: null, type: null });
+  // Which citation rows are expanded to show their source snippet, keyed
+  // by "<messageId>-<citationIndex>" so state doesn't collide across messages.
+  const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
+  const toggleCitation = (key: string) => {
+    setExpandedCitations(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
@@ -205,11 +216,38 @@ export function ChatPanel() {
                 <div className="mt-3 pt-3 border-t border-slate-100 dark:border-gray-700">
                   <div className="text-[10px] text-slate-500 dark:text-gray-400 font-bold mb-1.5 uppercase tracking-wider">Sources Consulted</div>
                   <div className="space-y-1">
-                    {msg.citations.map((cit, idx) => (
-                      <div key={idx} className="text-xs text-brand-600 dark:text-brand-400 truncate hover:underline cursor-pointer flex items-center gap-1.5">
-                        <span className="opacity-50">[{idx + 1}]</span> {cit.document_title} <span className="opacity-50 text-[10px]">({cit.version})</span>
-                      </div>
-                    ))}
+                    {msg.citations.map((cit, idx) => {
+                      const key = `${msg.id}-${idx}`;
+                      const isExpanded = expandedCitations.has(key);
+                      return (
+                        <div key={idx} className="rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-gray-700 -mx-1 px-1">
+                          <button
+                            type="button"
+                            onClick={() => cit.snippet && toggleCitation(key)}
+                            aria-expanded={isExpanded}
+                            className={`w-full text-left text-xs text-brand-600 dark:text-brand-400 flex items-start gap-1.5 py-0.5 ${cit.snippet ? 'cursor-pointer hover:underline' : 'cursor-default'}`}
+                          >
+                            <span className="opacity-50 shrink-0">[{idx + 1}]</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="truncate">{cit.document_title}</span>
+                              <span className="opacity-50 text-[10px]"> ({cit.version})</span>
+                              {cit.section && (
+                                <span className="block text-[10px] text-slate-500 dark:text-gray-400 font-normal truncate">{cit.section}</span>
+                              )}
+                            </span>
+                            {cit.snippet && (
+                              <ChevronDown size={12} className={`shrink-0 mt-0.5 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            )}
+                          </button>
+                          {isExpanded && cit.snippet && (
+                            <div className="mt-1 mb-2 ml-4 pl-2.5 border-l-2 border-brand-100 dark:border-brand-900/40 text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 flex items-start gap-1.5">
+                              <FileText size={12} className="shrink-0 mt-0.5 text-slate-400" />
+                              <span className="italic">"{cit.snippet}"</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

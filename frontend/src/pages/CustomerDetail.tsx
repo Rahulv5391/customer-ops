@@ -2,9 +2,24 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { customersApi } from '../api/customers';
 import type { CustomerDetailResponse } from '../types';
-import { Spinner, Avatar, Badge, Button, Input } from '../components/ui';
+import { Spinner, Avatar, Badge, Button, Input, Modal } from '../components/ui';
 import { ArrowLeft, Mail, Phone, MapPin, Building, Calendar, ChevronDown } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
+
+// Editable from this modal: phone + address only. Name/email/tier/status
+// are identity/billing-sensitive fields the AI chat's propose-confirm flow
+// already covers deliberately - this direct-edit shortcut is scoped to the
+// low-risk contact details an agent updates routinely (a customer moved,
+// or read their number back wrong).
+const editFormFromCustomer = (c: CustomerDetailResponse) => ({
+  phone: c.phone || '',
+  address_line1: c.address_line1 || '',
+  address_line2: c.address_line2 || '',
+  city: c.city || '',
+  region: c.region || '',
+  postal_code: c.postal_code || '',
+  country: c.country || '',
+});
 
 export function CustomerDetail() {
   const { id } = useParams<{id: string}>();
@@ -15,6 +30,9 @@ export function CustomerDetail() {
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'tickets' | 'notes'>('orders');
   const [note, setNote] = useState('');
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState<ReturnType<typeof editFormFromCustomer> | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const toggleOrder = (orderId: string) => {
     setExpandedOrders(prev => {
@@ -40,6 +58,28 @@ export function CustomerDetail() {
       toast.success('Note added');
     } catch (e) {
       toast.error('Failed to add note');
+    }
+  };
+
+  const openEditModal = () => {
+    if (!customer) return;
+    setEditForm(editFormFromCustomer(customer));
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !editForm) return;
+    setSavingEdit(true);
+    try {
+      const updated = await customersApi.update(id, editForm);
+      setCustomer(prev => prev ? { ...prev, ...updated } : null);
+      toast.success('Profile updated');
+      setEditOpen(false);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to update profile');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -94,7 +134,7 @@ export function CustomerDetail() {
                 </div>
               )}
             </div>
-            <Button variant="secondary" className="w-full mt-6">Edit Profile</Button>
+            <Button variant="secondary" className="w-full mt-6" onClick={openEditModal}>Edit Profile</Button>
           </div>
           
           <div className="card-surface p-5 dark:bg-gray-800 dark:border-gray-700 hidden lg:block">
@@ -244,6 +284,29 @@ export function CustomerDetail() {
           </div>
         </div>
       </div>
+
+      <Modal open={editOpen} onClose={() => !savingEdit && setEditOpen(false)} title="Edit Contact & Address" size="lg">
+        {editForm && (
+          <form onSubmit={handleSaveEdit} className="space-y-5">
+            <p className="text-xs text-slate-400 dark:text-gray-500 -mt-1">
+              Name, email, tier, and status changes go through the AI chat's propose-and-confirm flow. This form only covers phone and address.
+            </p>
+            <Input label="Phone" value={editForm.phone} onChange={e => setEditForm(f => f && ({ ...f, phone: e.target.value }))} />
+            <Input label="Address Line 1" value={editForm.address_line1} onChange={e => setEditForm(f => f && ({ ...f, address_line1: e.target.value }))} />
+            <Input label="Address Line 2" value={editForm.address_line2} onChange={e => setEditForm(f => f && ({ ...f, address_line2: e.target.value }))} />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input label="City" value={editForm.city} onChange={e => setEditForm(f => f && ({ ...f, city: e.target.value }))} />
+              <Input label="Region/State" value={editForm.region} onChange={e => setEditForm(f => f && ({ ...f, region: e.target.value }))} />
+              <Input label="Postal Code" value={editForm.postal_code} onChange={e => setEditForm(f => f && ({ ...f, postal_code: e.target.value }))} />
+            </div>
+            <Input label="Country" value={editForm.country} onChange={e => setEditForm(f => f && ({ ...f, country: e.target.value }))} />
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-gray-700">
+              <Button type="button" variant="ghost" onClick={() => setEditOpen(false)} disabled={savingEdit}>Cancel</Button>
+              <Button type="submit" loading={savingEdit}>Save Changes</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }
