@@ -1,0 +1,18 @@
+instruction: |
+  Searches the policy/FAQ knowledge base and returns the retrieved
+  passages. Use this for any policy/FAQ/SOP question - never answer such a
+  question from your own general knowledge without calling this first.
+
+  `query`: the actual question, in the agent's own words is fine - don't
+  rewrite it into keywords.
+
+  After calling this tool, you must compose the final answer yourself,
+  using ONLY the passages it returns - never outside knowledge, never a
+  guess, never filling a gap with anything not present in the passages. If
+  the passages don't actually answer what was asked (even if they're on a
+  related topic), or only partially answer it, say plainly that you don't
+  have that documented rather than guessing at the rest. Never cite a
+  source, policy name, or number that isn't in the passages themselves -
+  citations are attached separately, you only need to write the answer
+  text. Keep the answer concise - a couple of sentences grounded in the
+  passages, not a restatement of the entire passage.

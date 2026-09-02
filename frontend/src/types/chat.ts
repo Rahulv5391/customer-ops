@@ -1,5 +1,10 @@
 ﻿export type ChatMessageType = 'text' | 'action-confirmation' | 'citation-answer' | 'error';
-export type ActionType = 'update_field' | 'reassign_ticket' | 'schedule_callback' | 'create_escalation';
+export type ActionType =
+  | 'update_field'
+  | 'reassign_ticket'
+  | 'schedule_callback'
+  | 'create_escalation'
+  | 'create_ticket';
 
 export interface Citation {
   document_title: string;
@@ -16,7 +21,7 @@ export interface PendingAction {
   entity_id: string;
   field_name: string | null;
   field_value: string | null;
-  escalation_payload: Record<string, unknown> | null;
+  mutation_payload: Record<string, unknown> | null;
 }
 
 export interface ChatMessage {

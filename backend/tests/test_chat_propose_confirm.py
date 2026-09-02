@@ -33,6 +33,40 @@ def _make_agent(db, email="other.agent@example.com"):
     return agent
 
 
+def test_create_ticket_confirm_lands_the_ticket(client, agent_headers, db):
+    customer = _make_customer(db)
+    token = create_action_token(
+        action_type="create_ticket",
+        entity_type="customer",
+        entity_id=customer.id,
+        mutation_payload={
+            "customer_id": customer.id,
+            "subject": "Can't reset my password",
+            "channel": "chat",
+            "priority": "high",
+            "category": "account_access",
+        },
+    )
+    r = client.post("/api/v1/chat/action/confirm", json={"token": token}, headers=agent_headers)
+    assert r.status_code == 200
+    assert r.json()["entity"]["subject"] == "Can't reset my password"
+    assert r.json()["entity"]["customer_id"] == customer.id
+
+    entries = db.query(ActivityLog).filter(ActivityLog.entity_id == r.json()["entity"]["id"]).all()
+    assert any(e.action_type == "create_ticket" for e in entries)
+
+
+def test_create_ticket_nonexistent_customer_returns_404(client, agent_headers):
+    token = create_action_token(
+        action_type="create_ticket",
+        entity_type="customer",
+        entity_id="does-not-exist",
+        mutation_payload={"customer_id": "does-not-exist", "subject": "Test"},
+    )
+    r = client.post("/api/v1/chat/action/confirm", json={"token": token}, headers=agent_headers)
+    assert r.status_code == 404
+
+
 def test_update_field_confirm_lands_the_change(client, agent_headers, db):
     customer = _make_customer(db)
     token = create_action_token(
@@ -129,7 +163,7 @@ def test_create_escalation_under_threshold_is_auto_approved(client, agent_header
         action_type="create_escalation",
         entity_type="ticket",
         entity_id=ticket.id,
-        escalation_payload={
+        mutation_payload={
             "escalation_type": "account_credit",
             "requested_action": "Issue a $5 credit.",
             "priority": "low",
@@ -142,6 +176,14 @@ def test_create_escalation_under_threshold_is_auto_approved(client, agent_header
     assert r.status_code == 200
     assert r.json()["entity"]["status"] == "approved"
 
+    # Filing an escalation must show up on the ticket's own timeline, not
+    # just the global audit log - otherwise there's no way to tell, from
+    # the ticket itself, whether one was ever filed against it.
+    fetched = ticket_crud.get_ticket(db, ticket.id)
+    escalated_events = [e for e in fetched.events if e.event_type == "escalated"]
+    assert len(escalated_events) == 1
+    assert "auto-approved" in escalated_events[0].detail
+
 
 def test_create_escalation_over_threshold_stays_pending(client, agent_headers, db):
     customer = _make_customer(db)
@@ -150,7 +192,7 @@ def test_create_escalation_over_threshold_stays_pending(client, agent_headers, d
         action_type="create_escalation",
         entity_type="ticket",
         entity_id=ticket.id,
-        escalation_payload={
+        mutation_payload={
             "escalation_type": "account_credit",
             "requested_action": "Issue a $500 credit.",
             "priority": "high",
@@ -162,6 +204,11 @@ def test_create_escalation_over_threshold_stays_pending(client, agent_headers, d
     r = client.post("/api/v1/chat/action/confirm", json={"token": token}, headers=agent_headers)
     assert r.status_code == 200
     assert r.json()["entity"]["status"] == "pending"
+
+    fetched = ticket_crud.get_ticket(db, ticket.id)
+    escalated_events = [e for e in fetched.events if e.event_type == "escalated"]
+    assert len(escalated_events) == 1
+    assert "auto-approved" not in escalated_events[0].detail
 
 
 def test_tampered_token_is_rejected(client, agent_headers, db):

@@ -14,7 +14,7 @@ def create_action_token(
     entity_id: str,
     field_name: str | None = None,
     field_value: str | None = None,
-    escalation_payload: dict | None = None,
+    mutation_payload: dict | None = None,
 ) -> str:
     """Signs the fields of a proposed action into a short-lived token."""
     now = datetime.now(timezone.utc)
@@ -24,7 +24,7 @@ def create_action_token(
         "entity_id": entity_id,
         "field_name": field_name,
         "field_value": field_value,
-        "escalation_payload": escalation_payload,
+        "mutation_payload": mutation_payload,
         "iat": now,
         "exp": now + timedelta(minutes=ACTION_TOKEN_EXPIRY_MINUTES),
     }
@@ -42,5 +42,5 @@ def decode_action_token(token: str) -> dict:
         "entity_id": payload["entity_id"],
         "field_name": payload.get("field_name"),
         "field_value": payload.get("field_value"),
-        "escalation_payload": payload.get("escalation_payload"),
+        "mutation_payload": payload.get("mutation_payload"),
     }

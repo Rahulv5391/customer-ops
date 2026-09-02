@@ -75,7 +75,7 @@ app/
 ├── crud/              # thin repository layer, one file per entity
 ├── routers/           # API endpoints
 ├── services/          # crm_mutations, rag_service, audit_service, auth_service, analytics_service, ...
-├── agents/            # LLM orchestration - router_agent + one sub-agent per capability
+├── agents/            # LLM orchestration - one unified tool-calling ops_agent (agents/tools/)
 └── prompts/           # versioned YAML instruction templates
 data/
 └── seed_data.py       # drop + recreate + seed

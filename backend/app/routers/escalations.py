@@ -3,8 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.crud import escalation as escalation_crud
+from app.crud import ticket as ticket_crud
 from app.models.agent import SupportAgent
 from app.schemas.escalation import EscalationResolve, EscalationResponse
+from app.schemas.ticket import TicketEventCreate
 from app.services import audit_service
 from app.services.auth_service import require_team_lead
 
@@ -55,6 +57,22 @@ def resolve_escalation(
         raise HTTPException(status_code=400, detail="status must be 'approved' or 'rejected'")
 
     updated = escalation_crud.resolve_escalation(db, escalation, payload.status, payload.rejection_note)
+
+    # Same reasoning as create_escalation in crm_mutations.py - this needs
+    # to show up on the ticket's own timeline, not just the global audit
+    # log, so anyone looking at the ticket can tell whether it was approved
+    # or rejected without having to go find the escalation record itself.
+    if updated.ticket_id:
+        detail = f"Escalation {updated.escalation_number} {payload.status}"
+        if payload.status == "rejected" and payload.rejection_note:
+            detail += f": {payload.rejection_note}"
+        ticket_crud.add_ticket_event(
+            db,
+            ticket_id=updated.ticket_id,
+            actor=agent.full_name,
+            data=TicketEventCreate(event_type="escalated", detail=detail),
+        )
+
     audit_service.record_activity(
         db,
         actor=agent.full_name,

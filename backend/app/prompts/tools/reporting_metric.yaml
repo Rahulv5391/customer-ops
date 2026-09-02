@@ -1,0 +1,12 @@
+instruction: |
+  Pulls up a reporting number: tickets resolved today, pending escalations
+  count, top issue categories, ticket volume, or a general summary.
+
+  Set `metric` to exactly one of: "ticket_volume" (ticket volume/count over
+  recent days), "top_categories" (most common issue/ticket categories),
+  "escalations_pending" (how many escalations are awaiting review),
+  "tickets_resolved_today" (count resolved today), or "summary" (a
+  general/overall reporting request, or anything that doesn't clearly match
+  one specific metric above - e.g. "how are we doing," "give me the
+  numbers"). Default to "summary" if unsure which specific metric was
+  meant.

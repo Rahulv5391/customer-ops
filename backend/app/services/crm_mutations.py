@@ -11,7 +11,7 @@ from app.models.escalation import Escalation
 from app.models.ticket import Ticket
 from app.schemas.customer import CustomerUpdate
 from app.schemas.escalation import EscalationCreate
-from app.schemas.ticket import TicketEventCreate, TicketUpdate
+from app.schemas.ticket import TicketCreate, TicketEventCreate, TicketUpdate
 from app.services import audit_service
 
 # Customer fields that can be updated through chat.
@@ -163,6 +163,24 @@ def schedule_callback(db: Session, ticket_id: str, callback_time: str, actor: st
     return ticket
 
 
+def create_ticket(db: Session, payload: dict, actor: str) -> Ticket:
+    customer_id = payload.get("customer_id")
+    if not customer_id or not customer_crud.get_customer(db, customer_id):
+        raise EntityNotFoundError(f"Customer {customer_id} not found")
+
+    data = TicketCreate(**payload)
+    ticket = ticket_crud.create_ticket(db, data)
+    audit_service.record_activity(
+        db,
+        actor=actor,
+        action_type="create_ticket",
+        entity_type="ticket",
+        entity_id=ticket.id,
+        summary=f"Created ticket {ticket.ticket_number}: {ticket.subject}",
+    )
+    return ticket
+
+
 def create_escalation(db: Session, payload: dict, requested_by: str) -> Escalation:
     payload = dict(payload)
     requested_amount = payload.pop("requested_amount", None)
@@ -176,6 +194,23 @@ def create_escalation(db: Session, payload: dict, requested_by: str) -> Escalati
         and requested_amount <= settings.auto_approval_threshold_pct
     ):
         escalation = escalation_crud.resolve_escalation(db, escalation, status="approved")
+
+    # Visible on the ticket's own event timeline, not just the global audit
+    # log - otherwise there's no way to tell, from the ticket itself,
+    # whether/when an escalation was ever filed against it.
+    if escalation.ticket_id:
+        detail = (
+            f"Escalation filed: {escalation.escalation_type.replace('_', ' ')} "
+            f"({escalation.escalation_number})"
+        )
+        if escalation.status == "approved":
+            detail += " - auto-approved"
+        ticket_crud.add_ticket_event(
+            db,
+            ticket_id=escalation.ticket_id,
+            actor=requested_by,
+            data=TicketEventCreate(event_type="escalated", detail=detail),
+        )
 
     audit_service.record_activity(
         db,

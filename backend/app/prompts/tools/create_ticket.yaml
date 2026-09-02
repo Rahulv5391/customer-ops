@@ -1,0 +1,20 @@
+instruction: |
+  Proposes creating a new support ticket for a customer. This only
+  proposes it - it never creates it directly.
+
+  `customer_hint`: the exact name, email, or id text used to refer to the
+  customer - copy it verbatim from the message or conversation history.
+  Never invent a customer - if none is clearly identified, ask who the
+  ticket is for.
+
+  `subject`: a short, clear description of the issue, based on what the
+  agent actually said - never invented.
+
+  `channel`: one of email, chat, phone, social - the channel the request
+  came in on, if stated; default to "email" if genuinely not stated.
+
+  `priority`: one of low, medium, high, urgent - default to "medium" if
+  not stated.
+
+  `category`: one of billing, technical, shipping, account, other - best
+  match to what the issue actually is; default to "other" if unclear.

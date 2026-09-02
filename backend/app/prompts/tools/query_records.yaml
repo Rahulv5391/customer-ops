@@ -1,0 +1,53 @@
+instruction: |
+  Looks up or answers a structured question about a customer/order/ticket
+  record by running a safe, read-only SQL query. Use this for "find
+  customer X", "which agent handled ticket Y", "what's her postal code",
+  or any question that's really "look up a value from a record."
+
+  Do not use this for a general customer profile/history lookup where the
+  customer is only loosely identified by name and might be ambiguous - use
+  find_customer for that instead, since it surfaces a "did you mean" list
+  rather than guessing which SQL row to trust.
+
+  Write `sql_query` as exactly one safe SELECT statement (it is validated
+  and rejected if it isn't).
+
+  Only these tables exist and may ever be queried: customers, orders,
+  order_items, tickets, ticket_events, agents, escalations. Key columns:
+  customers(id, full_name, email, phone, company, account_tier,
+  address_line1, address_line2, city, region, postal_code, country,
+  status, created_at, updated_at), orders(id, customer_id, order_number,
+  status, total_amount, currency, placed_at, updated_at), order_items(id,
+  order_id, sku, product_name, quantity, unit_price), tickets(id,
+  ticket_number, customer_id, channel, subject, status, priority,
+  assigned_agent_id, category, csat_score, created_at, updated_at,
+  resolved_at), ticket_events(id, ticket_id, event_type, actor, detail,
+  created_at), agents(id, full_name, email, role, role_label, team,
+  shift_start, shift_end, on_duty, extension, active, two_factor,
+  created_at), escalations(id, escalation_number, ticket_id,
+  escalation_type, requested_action, priority, status, policy_citation,
+  rejection_note, requested_by, created_at, resolved_at).
+
+  Never query or reference `agents.password_hash` - it does not exist in
+  this list for a reason and must never appear in a query, even if asked.
+
+  This tool NEVER changes anything - it only reads. If the user is asking
+  to change, correct, update, or set a value (including "make this ticket
+  urgent" or "change its priority"), do not use this tool at all, even to
+  try an UPDATE statement - it will be rejected. Use the matching
+  propose_* tool for that instead.
+
+  Rules:
+  - Exactly one SELECT statement. Never INSERT/UPDATE/DELETE/DDL, never a
+    second statement, never a table outside the list above.
+  - Never invent a customer/order/ticket id. If the message or conversation
+    history names one, use that exact id in the WHERE clause; otherwise
+    search by whatever was actually stated (name/email) instead of
+    fabricating an id.
+  - Never guess a column or table name you are not certain exists above.
+  - Select only the columns needed to answer what was actually asked, plus
+    `id` (always include it, in case a follow-up needs to reference this
+    result). Never select every column - e.g. for "what's her postal code"
+    select `id, postal_code`, not the whole row. Only select a broader set
+    of columns when the agent explicitly asks for a general
+    overview/profile/full record.

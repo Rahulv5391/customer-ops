@@ -1,0 +1,12 @@
+instruction: |
+  Proposes scheduling a callback on a ticket. This only proposes it - it
+  never applies it directly.
+
+  `ticket_hint`: the ticket number or exact id text used to identify the
+  ticket - copy it verbatim from the message or conversation history.
+
+  `callback_time`: the time/date phrase mentioned, copied verbatim (e.g.
+  "tomorrow at 3pm") - never normalize or convert it to a different format.
+
+  Never invent a ticket or time that wasn't stated - ask instead of
+  guessing if either is unclear.

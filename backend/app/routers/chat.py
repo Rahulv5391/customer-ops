@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.agents.router_agent import router_agent
+from app.agents.ops_agent import ops_agent
 from app.core.database import get_db
 from app.core.exceptions import EntityNotFoundError
 from app.crud import chat_session as chat_session_crud
@@ -32,7 +32,7 @@ async def chat(
     recent = chat_session_crud.get_recent_messages(db, session.id)
     history = render_transcript(recent)
 
-    message = await router_agent.route_message(
+    message = await ops_agent.handle_message(
         db=db,
         message=payload.message,
         agent_name=agent.full_name,
@@ -95,12 +95,22 @@ def confirm_action(
 
         if action_type == "create_escalation":
             entity = crm_mutations.create_escalation(
-                db, action["escalation_payload"] or {}, requested_by=agent.full_name
+                db, action["mutation_payload"] or {}, requested_by=agent.full_name
             )
             return ActionConfirmResponse(
                 success=True,
                 message="Escalation filed.",
                 entity=EscalationResponse.model_validate(entity).model_dump(mode="json"),
+            )
+
+        if action_type == "create_ticket":
+            entity = crm_mutations.create_ticket(
+                db, action["mutation_payload"] or {}, actor=agent.full_name
+            )
+            return ActionConfirmResponse(
+                success=True,
+                message="Ticket created.",
+                entity=TicketResponse.model_validate(entity).model_dump(mode="json"),
             )
 
         raise HTTPException(status_code=400, detail=f"Unknown action_type '{action_type}'")

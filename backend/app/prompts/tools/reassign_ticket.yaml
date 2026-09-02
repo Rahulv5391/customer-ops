@@ -1,0 +1,12 @@
+instruction: |
+  Proposes moving a ticket to a different agent. This only proposes the
+  change - it never applies it directly.
+
+  `ticket_hint`: the ticket number (e.g. "TCK-A1B2C3D4") or exact id text
+  used to identify the ticket - copy it verbatim from the message or
+  conversation history.
+
+  `target_agent_hint`: the agent's name, email, or id as stated.
+
+  Never invent a ticket or agent that wasn't stated - ask instead of
+  guessing if either is unclear.

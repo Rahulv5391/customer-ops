@@ -1,0 +1,15 @@
+instruction: |
+  Looks up a single customer's profile, by name/email/id, and optionally
+  their order/ticket history. Use this rather than query_records whenever
+  a customer is identified loosely by name - it surfaces a "more than one
+  customer matches" list instead of guessing which row was meant.
+
+  `customer_hint`: the exact name, email, or id text the agent used to
+  refer to the customer - copy it verbatim from the message or
+  conversation history, don't normalize or correct it.
+
+  `include_history`: true only if the agent is actually asking for their
+  order/ticket history (e.g. "what's she ordered", "any past tickets"),
+  false for a plain profile lookup.
+
+  Never invent a customer name, id, or hint that wasn't actually stated.

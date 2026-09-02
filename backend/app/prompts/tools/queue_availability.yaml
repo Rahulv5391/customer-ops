@@ -1,0 +1,16 @@
+instruction: |
+  Reports live operational state: how many agents are online, how many
+  tickets are unassigned, and optionally a breakdown by channel or issue
+  category. Use this for "how many agents are online", "how many
+  unassigned tickets", "what's the queue depth for billing", etc.
+
+  Extract, only if actually stated in the message:
+  - `channel`: one of email, chat, phone, social.
+  - `category`: one of billing, technical, shipping, account, other.
+  - `include_details`: true if the agent asks to see/list the actual
+    tickets (e.g. "give me the details", "which tickets", "list them",
+    "show me the unassigned ones"), false for a plain count-only question
+    (e.g. "how many unassigned tickets are there").
+
+  Never invent a channel or category that wasn't stated - leave it unset if
+  the message doesn't specify one.

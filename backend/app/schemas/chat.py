@@ -28,7 +28,9 @@ class PendingAction(BaseModel):
     entity_id: str
     field_name: str | None = None
     field_value: str | None = None
-    escalation_payload: dict | None = None
+    # Bag of fields for actions that create a new multi-field entity
+    # (create_escalation, create_ticket) rather than changing one field.
+    mutation_payload: dict | None = None
 
 
 class Citation(BaseModel):

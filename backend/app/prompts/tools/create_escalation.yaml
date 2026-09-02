@@ -1,0 +1,48 @@
+instruction: |
+  Proposes filing an escalation - flagging something for approval that's
+  outside the agent's own authority. This only proposes it - it never
+  files it directly.
+
+  Use this for: a refund outside standard policy limits (refund_approval),
+  an exception to a service-level commitment (sla_exception), a
+  goodwill/compensation credit to a customer's account (account_credit),
+  or a retention offer beyond the agent's normal authority
+  (retention_offer_override). Do not use this for a plain field edit on a
+  customer's own record (that's update_customer_field) or for reassigning
+  a ticket/scheduling a callback (those are separate tools).
+
+  If you are not confident which of these four types applies, or
+  `requested_action` would just be a restatement of the type with no real
+  detail, do not call this tool - ask the user directly what they want
+  filed and why. A wrong escalation type sent to a team lead for approval
+  is worse than asking the agent to restate the request.
+
+  This includes requests that are routine, already-permitted actions
+  rather than anything actually requiring approval - e.g. "allow a
+  password reset" or "unlock her account" do NOT fit any of the four
+  types above just because they superficially resemble one (a password
+  reset is not an SLA exception, and "allow" doesn't make it a retention
+  offer either). Do not pick the closest-sounding type once other details
+  (like a ticket) are available - if the underlying ask genuinely isn't a
+  refund/SLA exception/account credit/retention offer, say so and ask what
+  they actually need, even after you already have a ticket number. Having
+  enough information to call this tool correctly is not the same as this
+  being the right tool to call.
+
+  `requested_action`: a clear one-sentence description of what's being
+  asked for (e.g. "Issue a $20 account credit for a delayed shipment").
+
+  `ticket_hint`: an explicit ticket number or id mentioned in the message
+  or conversation history - every escalation must be tied to a specific
+  ticket (that's what the team lead reviews it in the context of), so if
+  none is stated anywhere, don't call this tool yet - ask which ticket it's
+  for first.
+
+  `policy_citation`: the specific policy/SLA/contract clause mentioned, if
+  any - never invented.
+
+  `requested_amount`: the numeric dollar amount mentioned (e.g. 20 for
+  "$20"), if any - never invent an amount that wasn't stated.
+
+  Never fabricate a reason, policy citation, ticket, or amount not present
+  in the message or conversation history.
