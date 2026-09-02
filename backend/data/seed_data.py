@@ -327,6 +327,8 @@ def seed_escalations(db, tickets: list[Ticket], agents: list[SupportAgent]) -> l
         ),
     ]
 
+    team_lead_names = [a.full_name for a in agents if a.role == "team_lead"]
+
     escalations = []
     for etype, action, priority, status, citation, rejection_note, ticket in plan:
         created_at = _days_ago(random.uniform(1, 10))
@@ -350,6 +352,39 @@ def seed_escalations(db, tickets: list[Ticket], agents: list[SupportAgent]) -> l
             )
         )
     db.add_all(escalations)
+    db.commit()
+
+    # Mirrors what crm_mutations.create_escalation / the escalation resolve
+    # endpoint write to a ticket's own event timeline in the real app - a
+    # freshly seeded ticket should show the same "escalated" entries a real
+    # one would, not just the Escalation row itself.
+    for escalation in escalations:
+        if not escalation.ticket_id:
+            continue
+        ticket = next(t for t in tickets if t.id == escalation.ticket_id)
+        ticket.events.append(
+            TicketEvent(
+                event_type="escalated",
+                actor=escalation.requested_by,
+                detail=(
+                    f"Escalation filed: {escalation.escalation_type.replace('_', ' ')} "
+                    f"({escalation.escalation_number})"
+                ),
+                created_at=escalation.created_at,
+            )
+        )
+        if escalation.status in ("approved", "rejected"):
+            detail = f"Escalation {escalation.escalation_number} {escalation.status}"
+            if escalation.status == "rejected" and escalation.rejection_note:
+                detail += f": {escalation.rejection_note}"
+            ticket.events.append(
+                TicketEvent(
+                    event_type="escalated",
+                    actor=random.choice(team_lead_names) if team_lead_names else "Team Lead",
+                    detail=detail,
+                    created_at=escalation.resolved_at,
+                )
+            )
     db.commit()
     return escalations
 
