@@ -5,8 +5,10 @@ from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     message: str
-    active_entity_id: str | None = None
-    active_entity_type: str | None = None
+    # Client-generated (crypto.randomUUID()), stable for the chat panel's
+    # whole mounted lifetime. Used to look up this session's persisted
+    # history - see app/models/chat_session.py.
+    session_id: str
     # user_id/role come from the authenticated JWT, not the request body.
 
 
@@ -47,11 +49,6 @@ class ChatMessage(BaseModel):
     pending_action: PendingAction | None = None
     citations: list[Citation] | None = None
     status: Literal["final", "pending_confirmation"] | None = None
-    # Set when this turn's lookup resolved to exactly one entity. The
-    # frontend echoes these back as active_entity_id/active_entity_type
-    # on the next request.
-    resolved_entity_id: str | None = None
-    resolved_entity_type: str | None = None
 
 
 class ChatResponse(BaseModel):

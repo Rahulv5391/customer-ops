@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.agents.router_agent import router_agent
 from app.core.database import get_db
 from app.core.exceptions import EntityNotFoundError
+from app.crud import chat_session as chat_session_crud
 from app.models.agent import SupportAgent
 from app.schemas.chat import ActionConfirmRequest, ActionConfirmResponse, ChatRequest, ChatResponse
 from app.schemas.customer import CustomerResponse
@@ -12,6 +13,7 @@ from app.schemas.ticket import TicketResponse
 from app.services import crm_mutations
 from app.services.action_token import decode_action_token
 from app.services.auth_service import get_current_agent
+from app.services.conversation import render_transcript
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -22,14 +24,27 @@ async def chat(
     db: Session = Depends(get_db),
     agent: SupportAgent = Depends(get_current_agent),
 ):
+    try:
+        session = chat_session_crud.get_or_create_session(db, payload.session_id, agent.id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+
+    recent = chat_session_crud.get_recent_messages(db, session.id)
+    history = render_transcript(recent)
+
     message = await router_agent.route_message(
         db=db,
         message=payload.message,
         agent_name=agent.full_name,
         role=agent.role,
-        active_entity_id=payload.active_entity_id,
-        active_entity_type=payload.active_entity_type,
+        history=history,
     )
+
+    # Persisted only after the LLM call completes, so a failed/unavailable
+    # turn doesn't get baked into history as if it were a real exchange.
+    chat_session_crud.add_message(db, session.id, role="user", content=payload.message)
+    chat_session_crud.add_message(db, session.id, role="assistant", content=message.content)
+
     return ChatResponse(messages=[message])
 
 

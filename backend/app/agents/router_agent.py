@@ -15,6 +15,7 @@ from app.core.sql_security import SQLSecurityViolation, execute_safe_read_query
 from app.prompts.loader import load_prompt
 from app.schemas.chat import ChatMessage
 from app.services import analytics_service
+from app.services.conversation import with_history
 
 logger = get_logger("router_agent")
 
@@ -59,14 +60,11 @@ class RouterAgent:
         message: str,
         agent_name: str,
         role: str,
-        active_entity_id: str | None = None,
-        active_entity_type: str | None = None,
+        history: str = "",
         trace_id: str | None = None,
     ) -> ChatMessage:
         with new_trace(trace_id):
-            prompt_context = self._build_prompt(
-                message, agent_name, role, active_entity_id, active_entity_type
-            )
+            prompt_context = self._build_prompt(message, agent_name, role, history)
             try:
                 parsed = await self._sub_agent.run(prompt_context, user_id=agent_name)
             except (LLMTransientError, LLMOutputValidationError, CircuitOpenError) as exc:
@@ -77,20 +75,16 @@ class RouterAgent:
                 return self._execute_read_path(db, parsed.sql_query)
 
             if parsed.category == "crm_write":
-                return await crm_agent.handle_message(db, message, active_entity_id)
+                return await crm_agent.handle_message(db, message, history)
 
             if parsed.category == "queue_availability":
-                return await queue_agent.handle_message(
-                    db, message, active_entity_id, active_entity_type
-                )
+                return await queue_agent.handle_message(db, message, history)
 
             if parsed.category == "policy_qa":
-                return await rag_agent.handle_message(message)
+                return await rag_agent.handle_message(message, history)
 
             if parsed.category == "escalation":
-                return await escalation_agent.handle_message(
-                    db, message, active_entity_id, active_entity_type
-                )
+                return await escalation_agent.handle_message(db, message, history)
 
             if parsed.category == "analytics_query":
                 return self._execute_analytics_path(db, parsed.analytics_metric)
@@ -114,31 +108,13 @@ class RouterAgent:
                 type="text", content="That capability isn't available yet.", status="final"
             )
 
-    def _build_prompt(
-        self,
-        message: str,
-        agent_name: str,
-        role: str,
-        active_entity_id: str | None,
-        active_entity_type: str | None,
-    ) -> str:
-        if active_entity_id:
-            active_entity_doc = (
-                f"Active entity in context: type={active_entity_type}, id={active_entity_id}. "
-                "Use this exact id if the message refers to 'this customer'/'them'/'they'."
-            )
-        else:
-            active_entity_doc = "No active entity is currently in context."
-        return (
-            f"Agent: {agent_name} (role: {role}).\n"
-            f"{active_entity_doc}\n"
-            f"Message: {message}"
-        )
+    def _build_prompt(self, message: str, agent_name: str, role: str, history: str) -> str:
+        return with_history(history, f"Agent: {agent_name} (role: {role}).\nMessage: {message}")
 
     def _execute_read_path(self, db: Session, sql_query: str | None) -> ChatMessage:
         query = sql_query or "SELECT id, full_name, email, account_tier, status FROM customers LIMIT 20"
         try:
-            columns, rows, table = execute_safe_read_query(db, query)
+            columns, rows, _table = execute_safe_read_query(db, query)
         except SQLSecurityViolation as exc:
             return ChatMessage(type="error", content=f"Security policy restriction: {exc}", status="final")
         except Exception as exc:
@@ -147,18 +123,10 @@ class RouterAgent:
         if not rows:
             return ChatMessage(type="text", content="No matching records found.", status="final")
 
-        resolved_entity_id = None
-        resolved_entity_type = None
-        if len(rows) == 1 and table and "id" in columns:
-            resolved_entity_id = str(rows[0][columns.index("id")])
-            resolved_entity_type = table.rstrip("s")  # customers -> customer, escalations -> escalation
-
         return ChatMessage(
             type="text",
             content=self._format_rows_markdown(columns, rows[:20]),
             status="final",
-            resolved_entity_id=resolved_entity_id,
-            resolved_entity_type=resolved_entity_type,
         )
 
     def _format_rows_markdown(self, columns: list[str], rows: list[tuple]) -> str:
@@ -167,13 +135,10 @@ class RouterAgent:
         more than one, instead of a raw `col=val` dump on one line.
 
         The router's own prompt always appends a bare `id` column to every
-        query so a single-row result can still be tracked as follow-up
-        context (see `_execute_read_path` above, computed from the raw
-        `columns`/`rows` before this function ever runs) - but that opaque
-        hex id is meaningless to a human reading the chat, so it's dropped
-        from what's actually displayed. A foreign key the agent explicitly
-        asked for (e.g. `assigned_agent_id`) is a different, real answer to
-        their question and is kept."""
+        query, but that opaque hex id is meaningless to a human reading the
+        chat, so it's dropped from what's actually displayed. A foreign key
+        the agent explicitly asked for (e.g. `assigned_agent_id`) is a
+        different, real answer to their question and is kept."""
 
         def label(col: str) -> str:
             return col.replace("_", " ").title()

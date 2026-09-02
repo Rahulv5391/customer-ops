@@ -44,10 +44,10 @@ Every seeded agent's password is `password123`. Two useful accounts:
 
 ## Trying the chat assistant
 
-`POST /api/v1/chat` with `{"message": "..."}` (plus an optional `active_entity_id`/`active_entity_type` once a prior turn resolved one). A few things to try:
+`POST /api/v1/chat` with `{"message": "...", "session_id": "<a stable id you generate, e.g. crypto.randomUUID()>"}`. Reusing the same `session_id` across calls gives the assistant real multi-turn memory - the backend persists every turn (`app/models/chat_session.py`) and feeds the last 10 back to the LLM as conversation history on each new request. A few things to try:
 
 - `"find customer Daniel Brooks"` — CRM lookup, safely SQL-gated
-- `"change her email to new@example.com"` (after a lookup resolves an active customer) — proposes a change; confirm it via `POST /api/v1/chat/action/confirm` with the `pending_action.token` from the response
+- `"change her email to new@example.com"` (same `session_id`, right after the lookup above) — proposes a change; confirm it via `POST /api/v1/chat/action/confirm` with the `pending_action.token` from the response
 - `"what's our refund policy for orders over 30 days old?"` — RAG answer with a real "Source: ..." citation
 - `"how many agents are online right now"` — live queue availability
 - `"how many escalations are pending review"` — analytics, deterministic aggregation

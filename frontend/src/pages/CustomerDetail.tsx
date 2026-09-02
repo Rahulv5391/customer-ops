@@ -288,9 +288,6 @@ export function CustomerDetail() {
       <Modal open={editOpen} onClose={() => !savingEdit && setEditOpen(false)} title="Edit Contact & Address" size="lg">
         {editForm && (
           <form onSubmit={handleSaveEdit} className="space-y-5">
-            <p className="text-xs text-slate-400 dark:text-gray-500 -mt-1">
-              Name, email, tier, and status changes go through the AI chat's propose-and-confirm flow. This form only covers phone and address.
-            </p>
             <Input label="Phone" value={editForm.phone} onChange={e => setEditForm(f => f && ({ ...f, phone: e.target.value }))} />
             <Input label="Address Line 1" value={editForm.address_line1} onChange={e => setEditForm(f => f && ({ ...f, address_line1: e.target.value }))} />
             <Input label="Address Line 2" value={editForm.address_line2} onChange={e => setEditForm(f => f && ({ ...f, address_line2: e.target.value }))} />

@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ticketsApi } from '../api/tickets';
 import { customersApi } from '../api/customers';
 import { agentsApi } from '../api/agents';
-import type { TicketBoardRow, TicketStatus, TicketChannel, TicketCategory, TicketPriority, CustomerResponse, AgentResponse } from '../types';
+import type { TicketBoardRow, TicketStatus, TicketChannel, TicketCategory, TicketPriority, TicketResponse, CustomerResponse, AgentResponse } from '../types';
 import { Spinner, Avatar, Badge, Button, Modal, Input } from '../components/ui';
 import { Inbox, MessageSquare, Phone, Globe, AlertCircle, Plus } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
@@ -14,6 +14,8 @@ const channelIcons: Record<string, any> = {
   phone: Phone,
   social: Globe
 };
+
+const STATUSES: TicketStatus[] = ['unassigned', 'in_progress', 'pending_qa', 'resolved', 'closed'];
 
 const statusColors: Record<TicketStatus, string> = {
   unassigned: 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700',
@@ -39,6 +41,7 @@ export function TicketQueue() {
   const [board, setBoard] = useState<TicketBoardRow[]>([]);
   const [agentsById, setAgentsById] = useState<Record<string, AgentResponse>>({});
   const [loading, setLoading] = useState(true);
+  const [channelFilter, setChannelFilter] = useState<TicketChannel | 'all'>('all');
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -62,6 +65,18 @@ export function TicketQueue() {
       .then(agents => setAgentsById(Object.fromEntries(agents.map(a => [a.id, a]))))
       .catch(console.error);
   }, []);
+
+  // The API still returns one board row per channel (useful elsewhere) -
+  // merge every channel's tickets into a single set of status columns here,
+  // applying the channel filter, so the queue reads as one unified kanban
+  // instead of a separate board per channel.
+  const columns = useMemo(() => {
+    const rows = channelFilter === 'all' ? board : board.filter(r => r.channel === channelFilter);
+    return STATUSES.map(status => ({
+      status,
+      tickets: rows.flatMap(r => r.columns.find(c => c.status === status)?.tickets ?? []),
+    }));
+  }, [board, channelFilter]);
 
   const openCreateModal = () => {
     setForm(emptyForm);
@@ -111,64 +126,75 @@ export function TicketQueue() {
         </Button>
       </div>
 
+      <div className="flex gap-2 p-1 bg-slate-100 dark:bg-gray-800 rounded-lg mb-6 shrink-0 w-max overflow-x-auto scrollbar-thin">
+        {(['all', ...CHANNEL_OPTIONS] as const).map(c => {
+          const Icon = c === 'all' ? null : channelIcons[c];
+          return (
+            <button
+              key={c}
+              onClick={() => setChannelFilter(c)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold capitalize whitespace-nowrap transition-colors ${
+                channelFilter === c
+                  ? 'bg-white dark:bg-gray-700 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 hover:bg-slate-200 dark:hover:bg-gray-700/50'
+              }`}
+            >
+              {Icon && <Icon size={13} />}
+              {c === 'all' ? 'All Channels' : c}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="flex-1 overflow-auto scrollbar-thin">
-        <div className="flex flex-col gap-8 min-w-max pb-6">
-          {board.map((row, rowIdx) => {
-            const Icon = channelIcons[row.channel] || MessageSquare;
-            return (
-              <div key={row.channel} className="flex flex-col animate-fade-in-up" style={{ animationDelay: `${rowIdx * 80}ms` }}>
-                <div className="flex items-center gap-2 mb-4 sticky left-0 w-max">
-                  <Icon size={20} className="text-brand-600 dark:text-brand-400" />
-                  <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 capitalize">{row.channel} Channel</h3>
-                </div>
-                <div className="flex gap-4 sm:gap-6 items-stretch">
-                  {row.columns.map(col => (
-                    <div key={col.status} className={`w-72 sm:w-80 shrink-0 rounded-2xl border p-4 flex flex-col ${statusColors[col.status]}`}>
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                          {col.status.replace('_', ' ')}
-                        </span>
-                        <Badge variant="neutral">{col.tickets.length}</Badge>
+        <div className="flex gap-4 sm:gap-6 items-stretch min-w-max pb-6">
+          {columns.map(col => (
+            <div key={col.status} className={`w-72 sm:w-80 shrink-0 rounded-2xl border p-4 flex flex-col ${statusColors[col.status]}`}>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                  {col.status.replace('_', ' ')}
+                </span>
+                <Badge variant="neutral">{col.tickets.length}</Badge>
+              </div>
+              <div className="flex flex-col gap-3 stagger">
+                {col.tickets.map((t: TicketResponse) => {
+                  const assignedAgent = t.assigned_agent_id ? agentsById[t.assigned_agent_id] : null;
+                  const ChannelIcon = channelIcons[t.channel] || MessageSquare;
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => navigate(`/tickets/${t.id}`)}
+                      className="card-interactive bg-white dark:bg-gray-800 p-4 group"
+                    >
+                      <div className="flex justify-between items-start mb-2 gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <ChannelIcon size={12} className="text-slate-400 dark:text-gray-500 shrink-0" />
+                          <span className="font-data text-xs font-medium text-slate-500 dark:text-gray-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors truncate">#{t.ticket_number}</span>
+                        </div>
+                        {t.priority === 'urgent' && <AlertCircle size={14} className="text-red-500 shrink-0" />}
                       </div>
-                      <div className="flex flex-col gap-3 stagger">
-                        {col.tickets.map(t => {
-                          const assignedAgent = t.assigned_agent_id ? agentsById[t.assigned_agent_id] : null;
-                          return (
-                            <div
-                              key={t.id}
-                              onClick={() => navigate(`/tickets/${t.id}`)}
-                              className="card-interactive bg-white dark:bg-gray-800 p-4 group"
-                            >
-                              <div className="flex justify-between items-start mb-2 gap-2">
-                                <span className="font-data text-xs font-medium text-slate-500 dark:text-gray-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">#{t.ticket_number}</span>
-                                {t.priority === 'urgent' && <AlertCircle size={14} className="text-red-500 shrink-0" />}
-                              </div>
-                              <div className="font-medium text-sm text-slate-900 dark:text-white mb-4 line-clamp-2">{t.subject}</div>
-                              <div className="flex items-center justify-between mt-auto">
-                                <Badge variant={t.priority === 'high' || t.priority === 'urgent' ? 'danger' : t.priority === 'medium' ? 'warning' : 'neutral'}>{t.priority}</Badge>
-                                {t.assigned_agent_id ? (
-                                  <div title={assignedAgent?.full_name ?? 'Assigned'}>
-                                    <Avatar name={assignedAgent?.full_name ?? '?'} size="sm" className="w-6 h-6 text-[10px]" />
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-400 dark:text-slate-500 text-[10px] font-semibold uppercase tracking-wide">Unassigned</span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {col.tickets.length === 0 && (
-                          <div className="text-center p-6 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-400 dark:text-slate-500 text-sm font-medium">
-                            No tickets
+                      <div className="font-medium text-sm text-slate-900 dark:text-white mb-4 line-clamp-2">{t.subject}</div>
+                      <div className="flex items-center justify-between mt-auto">
+                        <Badge variant={t.priority === 'high' || t.priority === 'urgent' ? 'danger' : t.priority === 'medium' ? 'warning' : 'neutral'}>{t.priority}</Badge>
+                        {t.assigned_agent_id ? (
+                          <div title={assignedAgent?.full_name ?? 'Assigned'}>
+                            <Avatar name={assignedAgent?.full_name ?? '?'} size="sm" className="w-6 h-6 text-[10px]" />
                           </div>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500 text-[10px] font-semibold uppercase tracking-wide">Unassigned</span>
                         )}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
+                {col.tickets.length === 0 && (
+                  <div className="text-center p-6 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-400 dark:text-slate-500 text-sm font-medium">
+                    No tickets
+                  </div>
+                )}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
 

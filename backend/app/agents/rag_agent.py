@@ -10,6 +10,7 @@ from app.core.observability import get_logger
 from app.prompts.loader import load_prompt
 from app.schemas.chat import ChatMessage, Citation
 from app.services import rag_service
+from app.services.conversation import with_history
 
 logger = get_logger("rag_agent")
 
@@ -39,12 +40,12 @@ class RAGAgent:
             agent_name="rag_agent", instruction=instruction, output_schema=RAGAgentLLMOutput
         )
 
-    async def handle_message(self, message: str) -> ChatMessage:
+    async def handle_message(self, message: str, history: str = "") -> ChatMessage:
         hits = rag_service.search(message)
         if not hits or hits[0]["similarity"] < settings.rag_min_similarity:
             return _NOT_FOUND_MESSAGE
 
-        prompt = self._build_prompt(message, hits)
+        prompt = self._build_prompt(message, hits, history)
         try:
             parsed = await self._sub_agent.run(prompt, user_id="rag_agent")
         except (LLMTransientError, LLMOutputValidationError, CircuitOpenError) as exc:
@@ -64,12 +65,12 @@ class RAGAgent:
             status="final",
         )
 
-    def _build_prompt(self, message: str, hits: list[dict]) -> str:
+    def _build_prompt(self, message: str, hits: list[dict], history: str = "") -> str:
         passages = "\n\n".join(
             f"[Passage {i + 1} - {hit['document_title']}, {hit['section']}]\n{hit['text']}"
             for i, hit in enumerate(hits)
         )
-        return f"Question: {message}\n\nRetrieved passages:\n{passages}"
+        return with_history(history, f"Question: {message}\n\nRetrieved passages:\n{passages}")
 
     def _build_citations(self, hits: list[dict]) -> list[Citation]:
         # Dedup by (document, section).

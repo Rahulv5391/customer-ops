@@ -2,14 +2,10 @@
 import type { ChatMessage, ChatConfirmResponse } from '../types';
 
 export const chatApi = {
-  send: (message: string, activeEntityId?: string | null, activeEntityType?: string | null) =>
+  send: (message: string, sessionId: string) =>
     apiFetch<{ messages: ChatMessage[] }>('/chat', {
       method: 'POST',
-      body: JSON.stringify({
-        message,
-        active_entity_id: activeEntityId ?? null,
-        active_entity_type: activeEntityType ?? null,
-      }),
+      body: JSON.stringify({ message, session_id: sessionId }),
     }),
   confirm: (token: string) =>
     apiFetch<ChatConfirmResponse>('/chat/action/confirm', {

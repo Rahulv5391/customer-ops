@@ -8,14 +8,16 @@ from app.agents.messages import UNAVAILABLE_MESSAGE
 from app.core.exceptions import CircuitOpenError, LLMOutputValidationError, LLMTransientError
 from app.core.observability import get_logger
 from app.crud.agent import list_agents
-from app.crud.ticket import get_ticket, list_tickets
+from app.crud.ticket import list_tickets
 from app.models.agent import SupportAgent
 from app.models.ticket import Ticket
 from app.prompts.loader import load_prompt
 from app.schemas.chat import ActionDiff, ChatMessage, PendingAction
 from app.services.action_token import create_action_token
 from app.services.agent_status import is_on_duty
+from app.services.conversation import with_history
 from app.services.entity_resolution import AmbiguousEntityError, resolve_entity
+from app.services.ticket_resolution import resolve_ticket_context
 
 logger = get_logger("queue_agent")
 
@@ -46,55 +48,27 @@ class QueueAgent:
             agent_name="queue_agent", instruction=instruction, output_schema=QueueAgentOutput
         )
 
-    async def handle_message(
-        self,
-        db: Session,
-        message: str,
-        active_entity_id: str | None = None,
-        active_entity_type: str | None = None,
-    ) -> ChatMessage:
+    async def handle_message(self, db: Session, message: str, history: str = "") -> ChatMessage:
         try:
-            parsed = await self._sub_agent.run(message, user_id="queue_agent")
+            parsed = await self._sub_agent.run(with_history(history, message), user_id="queue_agent")
         except (LLMTransientError, LLMOutputValidationError, CircuitOpenError) as exc:
             logger.warning(f"Queue agent classification failed: {exc}")
             return UNAVAILABLE_MESSAGE
 
         if parsed.intent == "reassign_ticket":
-            return self._propose_reassign(db, parsed, message, active_entity_id, active_entity_type)
+            return self._propose_reassign(db, parsed, message)
 
         if parsed.intent == "schedule_callback":
-            return self._propose_callback(db, parsed, active_entity_id, active_entity_type)
+            return self._propose_callback(db, parsed)
 
         return self._availability_summary(
             db, channel=parsed.channel, category=parsed.category, include_details=parsed.include_details
         )
 
-    def _resolve_ticket(
-        self,
-        db: Session,
-        ticket_hint: str | None,
-        active_entity_id: str | None,
-        active_entity_type: str | None,
-    ) -> Ticket | None:
-        if active_entity_type == "ticket" and active_entity_id:
-            return get_ticket(db, active_entity_id)
-        if not ticket_hint:
-            return None
-        normalized = ticket_hint.strip().lower()
-        for ticket in list_tickets(db):
-            if ticket.id.lower() == normalized or ticket.ticket_number.lower() == normalized:
-                return ticket
-        return None
-
     def _propose_reassign(
-        self,
-        db: Session,
-        parsed: QueueAgentOutput,
-        raw_message: str,
-        active_entity_id: str | None,
-        active_entity_type: str | None,
+        self, db: Session, parsed: QueueAgentOutput, raw_message: str
     ) -> ChatMessage:
-        ticket = self._resolve_ticket(db, parsed.ticket_hint, active_entity_id, active_entity_type)
+        ticket = resolve_ticket_context(db, parsed.ticket_hint)
         if not ticket:
             return _NO_TICKET_FOUND
 
@@ -128,8 +102,11 @@ class QueueAgent:
             ),
             status="pending_confirmation",
             action_diff=ActionDiff(
-                before={"assigned_agent_id": ticket.assigned_agent_id},
-                after={"assigned_agent_id": target_agent.id},
+                # Human-readable names for display - the token (not this
+                # diff) is what's actually trusted to carry the real ids
+                # when the action gets confirmed.
+                before={"assigned_agent": before_agent_name},
+                after={"assigned_agent": target_agent.full_name},
             ),
             pending_action=PendingAction(
                 token=create_action_token(
@@ -145,18 +122,10 @@ class QueueAgent:
                 field_name="assigned_agent_id",
                 field_value=target_agent.id,
             ),
-            resolved_entity_id=ticket.id,
-            resolved_entity_type="ticket",
         )
 
-    def _propose_callback(
-        self,
-        db: Session,
-        parsed: QueueAgentOutput,
-        active_entity_id: str | None,
-        active_entity_type: str | None,
-    ) -> ChatMessage:
-        ticket = self._resolve_ticket(db, parsed.ticket_hint, active_entity_id, active_entity_type)
+    def _propose_callback(self, db: Session, parsed: QueueAgentOutput) -> ChatMessage:
+        ticket = resolve_ticket_context(db, parsed.ticket_hint)
         if not ticket:
             return _NO_TICKET_FOUND
 
@@ -182,8 +151,6 @@ class QueueAgent:
                 entity_id=ticket.id,
                 field_value=parsed.callback_time,
             ),
-            resolved_entity_id=ticket.id,
-            resolved_entity_type="ticket",
         )
 
     def _availability_summary(

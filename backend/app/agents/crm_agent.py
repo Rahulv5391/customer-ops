@@ -7,10 +7,11 @@ from app.agents.base_agent import BaseSubAgent
 from app.agents.messages import UNAVAILABLE_MESSAGE
 from app.core.exceptions import CircuitOpenError, LLMOutputValidationError, LLMTransientError
 from app.core.observability import get_logger
-from app.crud.customer import get_customer, get_customer_with_history, list_customers
+from app.crud.customer import get_customer_with_history, list_customers
 from app.prompts.loader import load_prompt
 from app.schemas.chat import ActionDiff, ChatMessage, PendingAction
 from app.services.action_token import create_action_token
+from app.services.conversation import with_history
 from app.services.crm_mutations import CUSTOMER_FIELD_LABELS, normalize_customer_field
 from app.services.entity_resolution import AmbiguousEntityError, resolve_entity
 
@@ -42,11 +43,9 @@ class CRMAgent:
             agent_name="crm_agent", instruction=instruction, output_schema=CRMAgentOutput
         )
 
-    async def handle_message(
-        self, db: Session, message: str, active_entity_id: str | None = None
-    ) -> ChatMessage:
+    async def handle_message(self, db: Session, message: str, history: str = "") -> ChatMessage:
         try:
-            parsed = await self._sub_agent.run(message, user_id="crm_agent")
+            parsed = await self._sub_agent.run(with_history(history, message), user_id="crm_agent")
         except (LLMTransientError, LLMOutputValidationError, CircuitOpenError) as exc:
             logger.warning(f"CRM agent classification failed: {exc}")
             return UNAVAILABLE_MESSAGE
@@ -54,9 +53,9 @@ class CRMAgent:
         if parsed.intent == "lookup":
             return self.handle_lookup(db, parsed.target_hint, message)
         if parsed.intent == "view_history":
-            return self.handle_view_history(db, active_entity_id, parsed.target_hint, message)
+            return self.handle_view_history(db, parsed.target_hint, message)
         return self.handle_update_field(
-            db, active_entity_id, parsed.target_hint, message, parsed.field_name, parsed.field_value
+            db, parsed.target_hint, message, parsed.field_name, parsed.field_value
         )
 
     def _resolve_customer(
@@ -92,15 +91,13 @@ class CRMAgent:
         return ChatMessage(type="text", content="\n".join(lines), status="final")
 
     def handle_view_history(
-        self, db: Session, active_entity_id: str | None, target_hint: str | None, raw_message: str
+        self, db: Session, target_hint: str | None, raw_message: str
     ) -> ChatMessage:
-        customer_id = active_entity_id
-        if not customer_id:
-            candidates = list_customers(db, limit=1000)
-            resolved, ambiguous = self._resolve_customer(candidates, target_hint, raw_message)
-            if ambiguous:
-                return ambiguous
-            customer_id = resolved.id if resolved else None
+        candidates = list_customers(db, limit=1000)
+        resolved, ambiguous = self._resolve_customer(candidates, target_hint, raw_message)
+        if ambiguous:
+            return ambiguous
+        customer_id = resolved.id if resolved else None
 
         if not customer_id:
             return _NOT_FOUND
@@ -125,7 +122,6 @@ class CRMAgent:
     def handle_update_field(
         self,
         db: Session,
-        active_entity_id: str | None,
         target_hint: str | None,
         raw_message: str,
         field_name: str | None,
@@ -138,12 +134,10 @@ class CRMAgent:
                 status="final",
             )
 
-        customer = get_customer(db, active_entity_id) if active_entity_id else None
-        if not customer:
-            candidates = list_customers(db, limit=1000)
-            customer, ambiguous = self._resolve_customer(candidates, target_hint, raw_message)
-            if ambiguous:
-                return ambiguous
+        candidates = list_customers(db, limit=1000)
+        customer, ambiguous = self._resolve_customer(candidates, target_hint, raw_message)
+        if ambiguous:
+            return ambiguous
         if not customer:
             return _NOT_FOUND
 
@@ -181,8 +175,6 @@ class CRMAgent:
                 field_name=normalized_field,
                 field_value=field_value,
             ),
-            resolved_entity_id=customer.id,
-            resolved_entity_type="customer",
         )
 
 

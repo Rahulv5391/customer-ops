@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
 import { chatApi } from '../../api/chat';
 import type { ChatMessage as APIChatMessage } from '../../types';
 import { Send, Bot, Check, ChevronDown, Maximize2, Minimize2, FileText } from 'lucide-react';
@@ -12,25 +11,33 @@ interface UIChatMessage extends APIChatMessage {
   fromUser: boolean;
 }
 
+// e.g. "requested_amount" -> "Requested Amount" - used for the field
+// labels in a create-style review card (see the action-confirmation
+// rendering below).
+function humanizeFieldLabel(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export function ChatPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [messages, setMessages] = useState<UIChatMessage[]>([
-    { 
-      id: 'welcome', fromUser: false, type: 'text', 
-      content: 'Hi! I am OpsAssist AI. I can help you find documentation, check order status, or update tickets. How can I help?', 
-      action_diff: null, pending_action: null, citations: null, status: 'final', 
-      resolved_entity_id: null, resolved_entity_type: null 
+    {
+      id: 'welcome', fromUser: false, type: 'text',
+      content: 'Hi! I am OpsAssist AI. I can help you find documentation, check order status, or update tickets. How can I help?',
+      action_diff: null, pending_action: null, citations: null, status: 'final'
     }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmingMap, setConfirmingMap] = useState<Record<string, boolean>>({});
-  // Last entity the AI itself resolved from a lookup/update reply mid-chat
-  // (e.g. "is there a customer named Carla" -> that customer's id). Used as
-  // a fallback so "her"/"this customer" still resolves when the agent isn't
-  // sitting on that record's own detail page - see getActiveContext below.
-  const [lastResolvedEntity, setLastResolvedEntity] = useState<{ id: string | null; type: string | null }>({ id: null, type: null });
+  // Stable for this chat panel's whole mounted lifetime (Layout mounts it
+  // once, sibling of <Outlet/>, so it survives in-app navigation) - the
+  // backend uses this to look up the last 10 turns of real conversation
+  // history and feed them to the LLM, which is what lets a follow-up like
+  // "refund of $1000 for ticket X" be understood after "I want to raise an
+  // escalation" a turn earlier. See backend/app/models/chat_session.py.
+  const [sessionId] = useState(() => crypto.randomUUID());
   // Which citation rows are expanded to show their source snippet, keyed
   // by "<messageId>-<citationIndex>" so state doesn't collide across messages.
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
@@ -44,22 +51,11 @@ export function ChatPanel() {
   };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isOpen]);
-
-  const getActiveContext = () => {
-    const path = location.pathname;
-    if (path.startsWith('/customers/')) return { type: 'customer', id: path.split('/')[2] };
-    if (path.startsWith('/tickets/')) return { type: 'ticket', id: path.split('/')[2] };
-    // Not on a record's own page - fall back to whatever the conversation
-    // itself last resolved, so a follow-up like "change her number" still
-    // knows who "her" is.
-    return lastResolvedEntity;
-  };
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -71,23 +67,18 @@ export function ChatPanel() {
       fromUser: true,
       type: 'text',
       content: userText,
-      action_diff: null, pending_action: null, citations: null, status: 'final',
-      resolved_entity_id: null, resolved_entity_type: null
+      action_diff: null, pending_action: null, citations: null, status: 'final'
     };
-    
+
     setMessages(prev => [...prev, newUserMsg]);
     setLoading(true);
 
     try {
-      const ctx = getActiveContext();
-      const res = await chatApi.send(userText, ctx.id, ctx.type);
-      
+      const res = await chatApi.send(userText, sessionId);
+
       if (res.messages && res.messages.length > 0) {
         const aiReply = res.messages[res.messages.length - 1];
         setMessages(prev => [...prev, { ...aiReply, id: (Date.now() + 1).toString(), fromUser: false }]);
-        if (aiReply.resolved_entity_id) {
-          setLastResolvedEntity({ id: aiReply.resolved_entity_id, type: aiReply.resolved_entity_type });
-        }
       }
     } catch (e: any) {
       toast.error('Failed to send message');
@@ -96,8 +87,7 @@ export function ChatPanel() {
         fromUser: false,
         type: 'error',
         content: e.message || 'An error occurred while connecting to the AI agent.',
-        action_diff: null, pending_action: null, citations: null, status: 'final',
-        resolved_entity_id: null, resolved_entity_type: null
+        action_diff: null, pending_action: null, citations: null, status: 'final'
       }]);
     } finally {
       setLoading(false);
@@ -186,13 +176,29 @@ export function ChatPanel() {
               {!msg.fromUser && msg.type === 'action-confirmation' && msg.pending_action && (
                 <div className="mt-4 p-3 bg-brand-50/50 dark:bg-brand-900/10 border border-brand-100 dark:border-brand-800/40 rounded-xl">
                   <div className="font-semibold text-[11px] text-brand-800 dark:text-brand-400 mb-2.5 uppercase tracking-wider">Review Action</div>
-                  
+
                   {msg.action_diff && (
-                    <div className="mb-3 text-xs flex gap-2 items-center bg-white dark:bg-gray-900 p-2.5 rounded-lg border border-slate-100 dark:border-gray-700 shadow-sm">
-                       <span className="text-red-500 line-through truncate flex-1 opacity-75">{String(Object.values(msg.action_diff.before)[0] || 'Empty')}</span>
-                       <span className="text-slate-400 shrink-0">?</span>
-                       <span className="text-emerald-600 dark:text-emerald-400 font-medium truncate flex-1">{String(Object.values(msg.action_diff.after)[0] || 'Empty')}</span>
-                    </div>
+                    Object.keys(msg.action_diff.before).length === 0 ? (
+                      // Nothing existed before (filing an escalation,
+                      // scheduling a callback) - a single before/after
+                      // value bar doesn't apply here, so show every field
+                      // being proposed as its own labeled row instead of
+                      // collapsing it down to just the first one.
+                      <div className="mb-3 text-xs bg-white dark:bg-gray-900 rounded-lg border border-slate-100 dark:border-gray-700 shadow-sm divide-y divide-slate-100 dark:divide-gray-800">
+                        {Object.entries(msg.action_diff.after).map(([key, value]) => (
+                          <div key={key} className="flex gap-3 justify-between px-2.5 py-1.5">
+                            <span className="text-slate-500 dark:text-gray-400 shrink-0">{humanizeFieldLabel(key)}</span>
+                            <span className="text-slate-800 dark:text-slate-200 font-medium text-right break-words">{String(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mb-3 text-xs flex gap-2 items-center bg-white dark:bg-gray-900 p-2.5 rounded-lg border border-slate-100 dark:border-gray-700 shadow-sm">
+                         <span className="text-red-500 line-through truncate flex-1 opacity-75">{String(Object.values(msg.action_diff.before)[0] || 'Empty')}</span>
+                         <span className="text-slate-400 shrink-0">→</span>
+                         <span className="text-emerald-600 dark:text-emerald-400 font-medium truncate flex-1">{String(Object.values(msg.action_diff.after)[0] || 'Empty')}</span>
+                      </div>
+                    )
                   )}
 
                   {msg.status === 'pending_confirmation' ? (

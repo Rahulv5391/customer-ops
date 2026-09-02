@@ -29,8 +29,6 @@ export interface ChatMessage {
   pending_action: PendingAction | null;
   citations: Citation[] | null;
   status: 'final' | 'pending_confirmation' | null;
-  resolved_entity_id: string | null;
-  resolved_entity_type: string | null;
 }
 
 export interface ChatConfirmResponse {
@@ -49,6 +47,4 @@ export interface UIChatMessage {
   pending_action: PendingAction | null;
   citations: Citation[] | null;
   status: 'final' | 'pending_confirmation' | null;
-  resolved_entity_id: string | null;
-  resolved_entity_type: string | null;
 }
