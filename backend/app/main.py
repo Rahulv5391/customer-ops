@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import Base, engine
+from app.core.database import Base, SessionLocal, engine
 from app import models  # noqa: F401 - registers all models on Base.metadata
 from app.routers import (
     activity_log,
@@ -19,12 +19,20 @@ from app.routers import (
     orders,
     tickets,
 )
+from app.services import rag_service
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.validate_runtime()
     Base.metadata.create_all(bind=engine)
+
+    db = SessionLocal()
+    try:
+        rag_service.reingest_if_empty(db)
+    finally:
+        db.close()
+
     yield
 
 

@@ -1,6 +1,7 @@
 import json
 
 import chromadb
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.kb_document import KBDocument
@@ -57,6 +58,23 @@ def ingest_document(document: KBDocument) -> None:
 
 def remove_document(document_id: str) -> None:
     _get_collection().delete(where={"document_id": document_id})
+
+
+def reingest_if_empty(db: Session) -> None:
+    """Re-derives the whole Chroma index from KBDocument rows already in
+    the SQL database, but only when the index is empty.
+
+    `KBDocument.content_json` is the real source of truth - Chroma is just
+    a derived search index over it. On a host with an ephemeral filesystem
+    (e.g. Render's web services without a persistent disk attached), the
+    Chroma index resets on every restart while the SQL database does not
+    (given a real, persistent DATABASE_URL) - calling this once at startup
+    means KB search keeps working with no persistent disk and no manual
+    re-upload after every cold start."""
+    if _get_collection().count() > 0:
+        return
+    for doc in db.query(KBDocument).all():
+        ingest_document(doc)
 
 
 def search(query: str, top_k: int | None = None) -> list[dict]:
