@@ -29,8 +29,17 @@ export interface TicketEventResponse {
   created_at: string;
 }
 
+export interface TicketCustomerSummary {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  company: string | null;
+}
+
 export interface TicketDetailResponse extends TicketResponse {
   events: TicketEventResponse[];
+  customer: TicketCustomerSummary;
 }
 
 export interface TicketBoardColumn {

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.crud import data_source as data_source_crud
 from app.models.agent import SupportAgent
-from app.schemas.data_source import DataSourceResponse
+from app.schemas.data_source import DataSourceCreate, DataSourceResponse
 from app.services import audit_service
 from app.services.auth_service import require_team_lead
 
@@ -17,6 +17,27 @@ def list_data_sources(
     _lead: SupportAgent = Depends(require_team_lead),
 ):
     return data_source_crud.list_data_sources(db)
+
+
+@router.post("", response_model=DataSourceResponse, status_code=201)
+def create_data_source(
+    payload: DataSourceCreate,
+    db: Session = Depends(get_db),
+    lead: SupportAgent = Depends(require_team_lead),
+):
+    """Registers a new connector. This is a mock integration - no live
+    connection is made; sync stays a manual, simulated action (see
+    sync_data_source below), same as every other source in the app."""
+    data_source = data_source_crud.create_data_source(db, payload)
+    audit_service.record_activity(
+        db,
+        actor=lead.full_name,
+        action_type="create_data_source",
+        entity_type="data_source",
+        entity_id=data_source.id,
+        summary=f"Connected data source '{data_source.name}' ({data_source.connector_type})",
+    )
+    return data_source
 
 
 @router.get("/{data_source_id}", response_model=DataSourceResponse)

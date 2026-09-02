@@ -13,7 +13,7 @@ _RESOLVED_STATUSES = {"resolved", "closed"}
 def get_ticket(db: Session, ticket_id: str) -> Ticket | None:
     return (
         db.query(Ticket)
-        .options(selectinload(Ticket.events))
+        .options(selectinload(Ticket.events), selectinload(Ticket.customer))
         .filter(Ticket.id == ticket_id)
         .first()
     )

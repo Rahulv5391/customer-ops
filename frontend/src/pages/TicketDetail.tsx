@@ -4,7 +4,7 @@ import { ticketsApi } from '../api/tickets';
 import { agentsApi } from '../api/agents';
 import type { TicketDetailResponse, TicketStatus, AgentResponse } from '../types';
 import { Spinner, Badge, Button, Avatar, Input, Modal } from '../components/ui';
-import { ArrowLeft, Clock, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Clock, AlertTriangle, Mail, Phone, Building, ExternalLink } from 'lucide-react';
 
 import { useToast } from '../hooks/useToast';
 
@@ -129,6 +129,41 @@ export function TicketDetail() {
       <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-hidden">
         {/* Sidebar Info */}
         <div className="lg:w-1/3 xl:w-1/4 flex flex-col gap-4 shrink-0 overflow-y-auto scrollbar-thin">
+          <div
+            onClick={() => navigate(`/customers/${ticket.customer.id}`)}
+            className="card-interactive p-5 dark:bg-gray-800 dark:border-gray-700"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Customer</h3>
+              <ExternalLink size={14} className="text-slate-400 dark:text-gray-500" />
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+              <Avatar name={ticket.customer.full_name} size="md" />
+              <div className="min-w-0">
+                <div className="font-semibold text-slate-900 dark:text-white truncate" title={ticket.customer.full_name}>{ticket.customer.full_name}</div>
+                {ticket.customer.company && <div className="text-xs text-slate-500 dark:text-gray-400 truncate" title={ticket.customer.company}>{ticket.customer.company}</div>}
+              </div>
+            </div>
+            <div className="space-y-2.5 text-sm">
+              <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300 min-w-0">
+                <Mail size={14} className="text-slate-400 shrink-0" />
+                <span className="truncate" title={ticket.customer.email}>{ticket.customer.email}</span>
+              </div>
+              {ticket.customer.phone && (
+                <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                  <Phone size={14} className="text-slate-400 shrink-0" />
+                  <span>{ticket.customer.phone}</span>
+                </div>
+              )}
+              {ticket.customer.company && (
+                <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300 min-w-0">
+                  <Building size={14} className="text-slate-400 shrink-0" />
+                  <span className="truncate" title={ticket.customer.company}>{ticket.customer.company}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="card-surface p-5 dark:bg-gray-800 dark:border-gray-700">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4 uppercase tracking-wider">Ticket Info</h3>
             <div className="space-y-4 text-sm">

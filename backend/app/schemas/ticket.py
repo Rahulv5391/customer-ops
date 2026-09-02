@@ -20,6 +20,20 @@ class TicketEventResponse(BaseModel):
     created_at: datetime
 
 
+class TicketCustomerSummary(BaseModel):
+    """Just enough to identify the customer on a ticket - a small local
+    model rather than importing app.schemas.customer, since that module
+    already imports TicketDetailResponse from here (would be circular)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    full_name: str
+    email: str
+    phone: str | None = None
+    company: str | None = None
+
+
 class TicketBase(BaseModel):
     channel: str = "email"
     subject: str
@@ -54,6 +68,7 @@ class TicketResponse(TicketBase):
 
 class TicketDetailResponse(TicketResponse):
     events: list[TicketEventResponse] = []
+    customer: TicketCustomerSummary
 
 
 class TicketBoardColumn(BaseModel):
