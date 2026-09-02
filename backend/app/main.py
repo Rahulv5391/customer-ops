@@ -1,10 +1,13 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import Base, SessionLocal, engine
+from app.core.database import Base, SessionLocal, engine, get_db
 from app import models  # noqa: F401 - registers all models on Base.metadata
 from app.routers import (
     activity_log,
@@ -58,7 +61,30 @@ else:
 
 @app.get("/")
 def health_check():
+    """Trivial liveness check - no DB round-trip, safe as Render's own
+    configured Health Check Path. Use /health (below) for the fuller
+    server+DB readiness check that an external uptime pinger should hit."""
     return {"status": "ok", "app": settings.app_name}
+
+
+@app.get("/health")
+def readiness_check(db: Session = Depends(get_db)):
+    """Server + DB readiness. Point an external uptime pinger (e.g.
+    cron-job.org, UptimeRobot - both free) at this on a ~10 minute interval:
+    it keeps a free Render web service from spinning down after 15 minutes
+    idle, AND (since it round-trips the DB) keeps a free-tier Postgres like
+    Neon from suspending its compute for the same reason. A ping that only
+    hit `/` would keep the web service warm but not the database."""
+    try:
+        db.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    return JSONResponse(
+        status_code=200 if db_ok else 503,
+        content={"status": "ok" if db_ok else "degraded", "db": "ok" if db_ok else "unreachable"},
+    )
 
 
 for router_module in (

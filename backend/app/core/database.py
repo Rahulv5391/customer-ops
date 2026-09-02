@@ -6,7 +6,14 @@ from app.core.config import settings
 is_sqlite = settings.database_url.startswith("sqlite")
 connect_args = {"check_same_thread": False} if is_sqlite else {}
 
-engine = create_engine(settings.database_url, connect_args=connect_args)
+# pool_pre_ping: a held connection is tested with a lightweight "is this
+# still alive" query before being reused, and transparently replaced if
+# not. Matters most on a free-tier serverless Postgres like Neon, whose
+# compute can suspend after a few minutes idle and drop connections our
+# pool was still holding open - without this, the first request after a
+# resume would fail on a stale connection instead of just reconnecting.
+# Harmless (and cheap) for SQLite too, so left unconditional.
+engine = create_engine(settings.database_url, connect_args=connect_args, pool_pre_ping=True)
 
 if is_sqlite:
     # SQLite ignores foreign key constraints unless enabled per connection.
